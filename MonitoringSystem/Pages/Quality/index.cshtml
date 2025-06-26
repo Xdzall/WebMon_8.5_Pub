@@ -1,0 +1,300 @@
+﻿ @page
+@model MonitoringSystem.Pages.Quality.QualityModel
+@{
+    ViewData["Title"] = "Production Quality";
+
+    var TotalPlan = Model.GetProductionPlan();
+    var DefectQuantity = Model.GetTotalDefect();
+    var DefectRatio = 100;
+    if (DefectQuantity > 0)
+    {
+        DefectRatio = (1 - (DefectQuantity / TotalPlan)) * 100;
+    }
+}
+
+<div class="row mx-3">
+    <div class="col-2 rounded" style="border: 1px solid rgb(61, 121, 176);">
+        <form method="post" class="m-2">
+            <div class="row m-2">
+                <button type="submit" class="btn text-white fs-5 fw-bold" style="background-color:rgb(61, 121, 176);">LINE CU</button>
+            </div>
+            <div class="row m-2">
+                <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">LINE CS</button>
+            </div>
+            <input type="hidden" id="machine" name="Machine" />
+        </form>
+    </div>
+
+    <div class="col ms-2">
+        <div class="row rounded p-2" style="border: 1px solid rgb(61, 121, 176);">
+            <div class="col justify-content-center py-1 ms-2">
+                <div class="row mb-2">
+                    <div class="card-header text-white fw-bold py-2 rounded-2" style="text-align: center; background-color: rgb(61, 121, 176);">TARGET RATIO</div>
+                </div>
+                <div class="row">
+                    <div id="openModalButton" class="btn btn-outline-secondary fs-5 fw-semibold">1.00 %</div>
+                </div>
+            </div>
+            <div class="col justify-content-center py-1 ms-2">
+                <div class="row mb-2">
+                    <div class="card-header text-white fw-bold py-2 rounded-2" style="text-align: center; background-color: rgb(61, 121, 176);">DEFECT QUANTITY</div>
+                </div>
+                <div class="row">
+                    <div class="btn btn-outline-secondary fs-5 fw-semibold">@DefectQuantity</div>
+                </div>
+            </div>
+            <div class="col justify-content-center py-1 ms-2">
+                <div class="row mb-2">
+                    <div class="card-header text-white fw-bold py-2 rounded-2" style="text-align: center; background-color: rgb(61, 121, 176);">DEFECT RATIO</div>
+                </div>
+                <div class="row">
+                    <div class="btn btn-outline-secondary fs-5 fw-semibold">@DefectRatio %</div>
+                </div>
+            </div>
+            <div class="col justify-content-center py-1 mx-2">
+                <div class="row mb-2">
+                    <div class="card-header text-white fw-bold py-2 rounded-2" style="text-align: center; background-color: rgb(61, 121, 176);">TOTAL OUTPUT</div>
+                </div>
+                <div class="row">
+                    <div class="btn btn-outline-secondary fs-5 fw-semibold">@TotalPlan</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mx-3 my-2">
+   <div class="col-2 rounded" style="border: 1px solid rgb(61, 121, 176);">
+        <div class="row m-2">
+            <span class="btn text-white fs-5 fw-bold" style="background-color:rgb(61, 121, 176); display:inline-block; text-align:center;">STATION</span>
+        </div>
+
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">PREPARING</button>
+        </div>
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">GAS LEAK</button>
+        </div>
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">INNER</button>
+        </div>
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">RUNNING</button>
+        </div>
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">FINAL</button>
+        </div>
+        <div class="row m-2">
+            <button type="submit" class="btn btn-outline-secondary fs-5 fw-bold">DETAIL</button>
+        </div>
+        <input type="hidden" id="station" name="Station" />
+    </div> 
+    <div class="col ms-2">
+        <div class="row rounded p-2 align-content-xl-center" style="border: 1px solid rgb(61, 121, 176);">
+            <label class="fs-2 text-center fw-bolder" style="color: rgb(61, 121, 176);">DAILY DEFECT</label>
+            <label class="fs-4 text-center fw-bold" style="color: rgb(61, 121, 176);">@(DateTime.Now.Date.ToString("dddd, dd MMM yyyy"))</label>
+            <div class="d-flex justify-content-center">
+                <canvas class="my-4 container-fluid" width="680" id="bar"></canvas>
+            </div>
+        </div> 
+    </div> 
+</div>
+
+<div class="row mx-3 my-2">
+    <div class="col-2 rounded" style="border: 1px solid rgb(61, 121, 176);">
+        <div class="row m-2">
+            <span class="btn text-white fs-5 fw-bold" style="background-color:rgb(61, 121, 176); display:inline-block; text-align:center;">DAILY</span>
+        </div>
+        <div class="row m-2">
+            <input class="form-control form-control-lg" type="text" placeholder="Start : " aria-label=".form-control-lg example">
+        </div>
+        <div class="row m-2">
+            <input class="form-control form-control-lg" type="text" placeholder="End : " aria-label=".form-control-lg example">
+        </div>
+        <div class="row m-2">
+            <span class="btn text-white fs-5 fw-bold" style="background-color:rgb(61, 121, 176); display:inline-block; text-align:center;">PERIOD</span>
+        </div>
+        <div class="row m-2">
+            <input class="form-control form-control-lg" type="text" placeholder="Year : " aria-label=".form-control-lg example">
+        </div>
+        <div class="row m-2">
+            <span class="btn text-white fs-5 fw-bold" style="background-color:rgb(61, 121, 176); display:inline-block; text-align:center;">YEARLY</span>
+        </div>
+    </div>
+    <div class="col ms-2">
+        <div class="row rounded p-2" style="border: 1px solid rgb(61, 121, 176);">
+            <label class="fs-3 fw-bolder" style="color: rgb(61, 121, 176);">DEFECT PROBLEM</label>
+            <div class="d-flex justify-content-center">
+                <canvas class="my-4 container-fluid" width="530" height="280" id="piea"></canvas>
+            </div>
+            <button class="btn text-white mb-2" style="background-color: rgb(61, 121, 176);">Detail</button>
+        </div>
+    </div>
+    <div class="col ms-2">
+        <div class="row rounded p-2" style="border: 1px solid rgb(61, 121, 176);">
+            <label class="fs-3 fw-bolder" style="color: rgb(61, 121, 176);">DEFECT BY MODEL</label>
+            <div class="d-flex justify-content-center">
+                <canvas class="my-4 container-fluid" width="530" height="280" id="pieb"></canvas>
+            </div>
+            <button class="btn text-white mb-2" style="background-color: rgb(61, 121, 176);">Detail</button>
+        </div>
+    </div>
+</div>
+
+<div class="row mx-3 my-2">
+    <div class="col-2"></div>
+    <div class="col ms-2">
+        <div class="row rounded p-2" style="border: 1px solid rgb(61, 121, 176);">
+            <label class="fs-2 text-center fw-bolder" style="color: rgb(61, 121, 176);">MONTHLY DEFECT</label>
+            <label class="fs-4 text-center fw-bold" style="color: rgb(61, 121, 176);">@(DateTime.Now.Date.ToString("MMMM yyyy"))</label>
+            <div class="d-flex justify-content-center">
+                <canvas class="my-4 container-fluid" width="680" id="bara"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    const ctxBar = document.getElementById('bar');
+    new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: ['Scracth', 'Dented', 'Machine Trouble', 'Gas Leak', 'Noise'],
+            datasets: [
+                {
+                    data: [12, 19, 3, 5, 2, 3],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2
+                },
+                {
+                    data: [7, 12, 5, 8, 3, 6],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    barPercentage: 0.7
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    const ctxPieA = document.getElementById('piea');
+    new Chart(ctxPieA, {
+        type: 'pie',
+        data: {
+            datasets: [{
+                data: [12, 19, 3, 5, 2, 3],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: false
+        }
+    });
+
+    const ctxPieB = document.getElementById('pieb');
+    new Chart(ctxPieB, {
+        type: 'pie',
+        data: {
+            datasets: [{
+                data: [12, 19, 3, 5, 2, 3],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: false
+        }
+    });
+
+    const ctxBarA = document.getElementById('bara');
+    new Chart(ctxBarA, {
+        type: 'bar',
+        data: {
+            labels: ['Day 1', 'Day 2', 'Day 3', ' Day 4', 'Day 5', 'Day 6', 'Day 7', 'Day 8', 'Day 9', 'Day 10'],
+            datasets: [
+                {
+                    data: [12, 19, 3, 5, 2, 3],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2
+                },
+                {
+                    data: [7, 12, 5, 8, 3, 6],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    barPercentage: 0.7
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+</script>

@@ -1,0 +1,69 @@
+﻿@model MonitoringSystem.Pages.LossTime.IndexModel
+
+<div class="refreshLossTimeSummary">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h6 class="card-title text-center fw-bold mb-2">Total Loss Time Summary</h6>
+
+            <div class="d-flex justify-content-center flex-wrap gap-3 mb-">
+                @{
+                    string[] allCategories = { "Change Model",
+                                                "Material Shortage External",
+                                                "MP Adjustment",
+                                                "Material Shortage Internal",
+                                                "Material Shortage Inhouse",
+                                                "Quality Trouble",
+                                                "Machine Trouble",
+                                                "Rework" 
+                                            };
+                    foreach (var category in allCategories)
+                    {
+                        int categoryValue = Model.CategorySummary.ContainsKey(category) ? Model.CategorySummary[category] : 0;
+                        decimal minutes = Math.Round((decimal)categoryValue / 60, 2);
+
+                        <div class="text-center mx-2">
+                            <div class="d-flex align-items-center ">
+                                <div class="rounded-circle me-2" style="width: 12px; height: 12px; background-color: @GetCategoryColor(category);"></div>
+                                <span class="fw-semibold">@category:</span>
+                            </div>
+                            <p class="mb-0 fw-bold">@minutes min</p>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="text-center pt-2 border-top">
+                <span class="fw-semibold">Grand Total:</span>
+                <span class="fw-bold ms-2">@Math.Round((decimal)Model.TotalDuration / 60, 2) min</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    public string GetCategoryColor(string category)
+    {
+        switch (category)
+        {
+            case "Change Model":
+                return "#4e73df"; // Blue
+            case "Material Shortage External":
+                return "#e74a3b"; // Red
+            case "MP Adjustment":
+                return "#f6c23e"; // Yellow
+            case "Material Shortage Internal":
+                return "#1cc88a"; // Green
+            case "Material Shortage Inhouse":
+                return "#36b9cc"; // Teal
+            case "Quality Trouble":
+                return "#9c50f2"; // Light Gray
+            case "Machine Trouble":
+                return "#e27267"; // Red
+            case "Rework":
+                return "#f39c12"; // Orange
+            default:
+                return "#858796"; // Default Gray
+        }
+
+    }
+}

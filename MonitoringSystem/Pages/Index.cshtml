@@ -1,0 +1,87 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<div class="text-center">
+    <h4 class="display-4">Air Conditioner Monitoring System</h4>
+</div>
+
+<div class="align-content-center mt-4 text-center">
+    <!-- Tombol untuk membuka modal -->
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+        Export to Excel
+    </button>
+</div>
+
+<!-- Modal untuk form export -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportModalLabel">Export to Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" asp-page-handler="ExportToExcel">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="month" class="form-label">Month</label>
+                        <select class="form-select" name="month" id="month" required>
+                            <option value="" disabled selected>Select Month</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="year" class="form-label">Year</label>
+                        <input type="number" class="form-control" name="year" id="year" placeholder="2025" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Export</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.getElementById('exportForm').addEventListener('submit', function (event) {
+        event.preventDefault(); 
+
+        const form = event.target;
+        const formData = new FormData(form);
+
+        fetch(form.action, {
+            method: form.method,
+            body: formData
+        }).then(response => {
+            if (response.ok) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+                modal.hide();
+
+                form.reset();
+                form.querySelector('select[name="month"]').value = "";
+            } else {
+                alert('Failed to export. Please try again.');
+            }
+        }).catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        });
+    });
+</script>

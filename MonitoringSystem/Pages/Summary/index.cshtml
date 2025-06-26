@@ -1,0 +1,906 @@
+﻿@page
+@using System.Globalization
+@model MonitoringSystem.Pages.Summary.SummaryModel
+@{
+    ViewData["Title"] = "Production Summary";
+
+    var CurrentWorkingTime = DateTime.Now.TimeOfDay;
+    var listRestTime = Model.GetRestTime(Model.DetermineTypeOfDay(Model.StartSelectedDate.DayOfWeek));
+
+    // WORKING TIME (SHIFT 1)
+    var StartWorkingTimeShift_01 = new TimeSpan(7, 0, 0);
+    var EndWorkingTimeShift_01 = new TimeSpan(16, 0, 0);
+
+    int WorkingTimeShift_01 = 0;
+    if (CurrentWorkingTime < StartWorkingTimeShift_01)
+        WorkingTimeShift_01 = 0;
+
+    // Working Duration (SHIFT 1)
+    TimeSpan WorkingDurationShift_01 = TimeSpan.Zero;
+    if (Model.StartSelectedDate != DateTime.Now.Date)
+    {
+        WorkingDurationShift_01 = EndWorkingTimeShift_01 - StartWorkingTimeShift_01;
+    }
+    else if (CurrentWorkingTime > EndWorkingTimeShift_01)
+    {
+        WorkingDurationShift_01 = EndWorkingTimeShift_01 - StartWorkingTimeShift_01;
+    }
+    else
+    {
+        WorkingDurationShift_01 = CurrentWorkingTime - StartWorkingTimeShift_01;
+    }
+    int TotalWorkingTimeShift_01 = (int)WorkingDurationShift_01.TotalMinutes;
+    int TotalRestTimeShift_01 = Model.GetTotalRestTime(listRestTime, StartWorkingTimeShift_01, EndWorkingTimeShift_01, CurrentWorkingTime);
+    WorkingTimeShift_01 = TotalWorkingTimeShift_01 - TotalRestTimeShift_01;
+
+    // CU ASSEMBLY LINE (SHIFT 1)
+    // Daily Plan (CU SHIFT 1)
+    var PlanCUShift_01 = 0;
+    if (Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+    { PlanCUShift_01 = Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+    // Actual Quantity (CU SHIFT 1)
+    var TotalActualCUShift_01 = 0;
+    if (Model.GetActualData(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+    { TotalActualCUShift_01 = Model.GetActualData(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+    // Current SUT Model (CU SHIFT 1)
+    var SUTModelCUShift_01 = 0;
+    if (Model.GetSUTModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+    { SUTModelCUShift_01 = Model.GetSUTModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Select(p => p.SUT).First(); }
+
+    // Plan Per SUT (CU SHIFT 1)
+    var ProdAchieveCUShift_01 = Model.GetHourlyAchievement(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").ToList();
+    // variabel value Plan yang lama
+    var TotalPlanSUTCUShift_01 = Model.CalculatePlanPerSUT(PlanCUShift_01, ProdAchieveCUShift_01, listRestTime);
+    // var hourlyPlans = CalculateAllHourlyPlans();
+    // System.Diagnostics.Debug.WriteLine($"hourlyPlanssss " + hourlyPlans);
+    // value Plan yang baru tapi gagal
+    var TotalPlanForSummaryCU = Model.GetPlanForSummaryCU(Model.StartSelectedDate);
+    var TotalPlanForSummaryCS = Model.GetPlanForSummaryCS(Model.StartSelectedDate);
+    // System.Diagnostics.Debug.WriteLine($"Plansss " + TotalPlanSUTCUShift_01);
+
+
+    
+    // Difference Qty (CU SHIFT 1)
+    var DiffCUShift_01 = TotalActualCUShift_01 - TotalPlanSUTCUShift_01;
+
+    // Total Loss Time (CU SHIFT 1)
+    var AssemblyTimeCUShift_01 = Model.GetAssemblyTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").ToList();
+    if (AssemblyTimeCUShift_01.Count > 0)
+    {
+        var FirstWorkTimeCUShift_01 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-01",
+                    SUT = AssemblyTimeCUShift_01.First().SUT,
+                    Model = AssemblyTimeCUShift_01.First().Model,
+                    ProductionTime = StartWorkingTimeShift_01
+                };
+        AssemblyTimeCUShift_01.Add(FirstWorkTimeCUShift_01);
+    }
+    var TotalLossTimeCUShift_01 = Model.CalculateTotalLossTime(AssemblyTimeCUShift_01, listRestTime) / 60;
+
+    // Model Start Time & End Time (CU SHIFT 1)
+    var ModelTimeCUShift_01 = Model.GetModelTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").FirstOrDefault();
+    
+    // Ratio Defect (CU SHIFT 1)
+    var TotalDefectCUShift_01 = Model.GetTotalDefect(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").ToList();
+    var DefectRatioCUShift_01 = 100;
+    if (TotalDefectCUShift_01.Count > 0 && PlanCUShift_01 > 0)
+    { DefectRatioCUShift_01 = (1 - (TotalDefectCUShift_01.First().DefectQty / PlanCUShift_01)) * 100; }
+
+    // Opr Ratio, Work Efficiency & Total Efficiency (CU SHIFT 1)
+    var OprRatioCUShift_01 = Math.Round((((Convert.ToDouble(WorkingTimeShift_01) - Convert.ToDouble(TotalLossTimeCUShift_01)) / Convert.ToDouble(WorkingTimeShift_01)) * 100), 2);
+    var WorkEffCUShift_01 = Math.Round((Convert.ToDouble(TotalActualCUShift_01) / Convert.ToDouble(TotalPlanSUTCUShift_01)) * 100, 2);
+    var TotalEffCUShift_01 = Math.Round(((OprRatioCUShift_01 / 100) * (WorkEffCUShift_01 / 100)) * 100, 2);
+
+    // # of Change Model (CU SHIFT 1)
+    var ModelChangesCUShift_01 = Model.GetTotalChangeModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Count();
+    
+    // Model Change Time (CU SHIFT 1)
+    var ModelCUShift_01 = Model.GetStartEndModel("MCH1-01", StartWorkingTimeShift_01, EndWorkingTimeShift_01);
+    var ModelTimeChangeCUShift_01 = 0.0;
+    if (ModelCUShift_01 != null && ModelCUShift_01.Count > 1)
+    {
+        for (int i = 1; i < ModelCUShift_01.Count; i++)
+        {
+            if (ModelCUShift_01[i].Model != ModelCUShift_01[i - 1].Model)
+            {
+                ModelTimeChangeCUShift_01 += (ModelCUShift_01[i].StartTime - ModelCUShift_01[i - 1].EndTime).TotalMinutes;
+            }
+        }
+    }
+
+    // CS ASSEMBLY LINE (SHIFT 1)
+    // Daily Plan (CS SHIFT 1)
+    var PlanCSShift_01 = 0;
+    if (Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+    { PlanCSShift_01 = Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+    var TotalActualCSShift_01 = 0;
+
+    // Actual Quantity (CS SHIFT 1)
+    if (Model.GetActualData(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+    { TotalActualCSShift_01 = Model.GetActualData(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+    
+    // Current SUT Model (CS SHIFT 1)
+    var SUTModelCSShift_01 = 0;
+    if (Model.GetSUTModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+    { SUTModelCSShift_01 = Model.GetSUTModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").Select(p => p.SUT).First(); }
+
+    // Plan Per SUT (CS SHIFT 1)
+    var ProdAchieveCSShift_01 = Model.GetHourlyAchievement(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").ToList();
+    var TotalPlanSUTCSShift_01 = Model.CalculatePlanPerSUT(PlanCSShift_01, ProdAchieveCSShift_01, listRestTime);
+
+    // Difference Qty (CS SHIFT 1)
+    var DiffCSShift_01 = TotalActualCSShift_01 - TotalPlanSUTCSShift_01;
+
+    // Total Loss Time (CS SHIFT 1)
+    var AssemblyTimeCSShift_01 = Model.GetAssemblyTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").ToList();
+    if (AssemblyTimeCSShift_01.Count > 0)
+    {
+        var FirstWorkTimeCSShift_01 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-02",
+                    SUT = AssemblyTimeCSShift_01.First().SUT,
+                    Model = AssemblyTimeCSShift_01.First().Model,
+                    ProductionTime = StartWorkingTimeShift_01
+                };
+        AssemblyTimeCSShift_01.Add(FirstWorkTimeCSShift_01);
+    }
+    var TotalLossTimeCSShift_01 = Model.CalculateTotalLossTime(AssemblyTimeCSShift_01, listRestTime) / 60;
+
+    // Model Start Time & End Time (CS SHIFT 1)
+    var ModelTimeCSShift_01 = Model.GetModelTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").FirstOrDefault();
+
+    // Ratio Defect (CS SHIFT 1)
+    var TotalDefectCSShift_01 = Model.GetTotalDefect(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").ToList();
+    var DefectRatioCSShift_01 = 100;
+    if (TotalDefectCSShift_01.Count > 0 && PlanCSShift_01 > 0)
+    { DefectRatioCSShift_01 = (1 - (TotalDefectCSShift_01.First().DefectQty / PlanCSShift_01)) * 100; }
+
+    // Opr Ratio, Work Efficiency & Total Efficiency (CS SHIFT 1)
+    var OprRatioCSShift_01 = Math.Round((((Convert.ToDouble(WorkingTimeShift_01) - Convert.ToDouble(TotalLossTimeCSShift_01)) / Convert.ToDouble(WorkingTimeShift_01)) * 100), 2);
+    var WorkEffCSShift_01 = Math.Round((Convert.ToDouble(TotalActualCSShift_01) / Convert.ToDouble(TotalPlanSUTCSShift_01)) * 100, 2);
+    var TotalEffCSShift_01 = Math.Round(((OprRatioCSShift_01 / 100) * (WorkEffCSShift_01 / 100)) * 100, 2);
+
+    // # of Change Model (CS SHIFT 1)
+    var ModelChangesCSShift_01 = Model.GetTotalChangeModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").Count();
+    
+    // Model Change Time (CS SHIFT 1)
+    var ModelCSShift_01 = Model.GetStartEndModel("MCH1-02", StartWorkingTimeShift_01, EndWorkingTimeShift_01);
+    var ModelTimeChangeCSShift_01 = 0.0;
+    if (ModelCSShift_01 != null && ModelCSShift_01.Count > 1)
+    {
+        for (int i = 1; i < ModelCSShift_01.Count; i++)
+        {
+            if (ModelCSShift_01[i].Model != ModelCSShift_01[i - 1].Model)
+            {
+                ModelTimeChangeCSShift_01 += (ModelCSShift_01[i].StartTime - ModelCSShift_01[i - 1].EndTime).TotalMinutes;
+            }
+        }
+    }
+    }
+
+<div>
+    <div class="row d-flex justify-content-between mx-3 align-items-center">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <form method="post" asp-page-handler="OnPost" class="w-75">
+                    <div class="form-group d-flex align-items-center gap-3">
+                        <div class="d-flex gap-3 align-items-center">
+                            <label class="fw-bold fs-6">Start Date</label>
+                            <input type="date" class="form-control border-dark" id="StartSelectedDate" name="StartSelectedDate" style="width:60%">
+                        </div>
+                        <div class="d-flex gap-3 align-items-center">
+                            <label class="fw-bold fs-6">End Date</label>
+                            <input type="date" class="form-control border-dark" id="EndSelectedDate" name="EndSelectedDate" style="width:60%">
+                        </div>
+                        <button type="submit" class="btn fw-bold fs-6 text-white" style="background-color: rgb(61, 121, 176);">Search</button>
+                    </div>
+                </form>
+                <form method="post" asp-page-handler="OnPost">
+                    <input type="hidden" id="SelectedDate" name="SelectedDate" value="@(DateTime.Now.Date)" />
+                    <button class="btn fw-bold fs-6 text-white" style="background-color: rgb(198, 61, 61);">On Line</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <hr/>
+    @if(Model.StartSelectedDate != Model.EndSelectedDate)
+    {
+        <p class="ms-3 fs-5 fw-bold text-secondary">@Model.StartSelectedDate.ToString("dddd, dd MMMM yyyy") - @Model.EndSelectedDate.ToString("dddd, dd MMMM yyyy")</p>
+    } 
+    else
+    {
+        <p class="ms-3 fs-5 fw-bold text-secondary">@Model.StartSelectedDate.ToString("dddd, dd MMMM yyyy")</p>
+    }
+    
+    <div class="w-screen">
+        <div class="text-center mt-3 mx-3 table-responsive card rounded-3 p-0 m-0 @(Model.StartSelectedDate == DateTime.Now.Date && DateTime.Now.TimeOfDay >= new TimeSpan(7,0,0) && DateTime.Now.TimeOfDay <= new TimeSpan(16,0,0) ? "border-success border-4":"")" id="ShiftATable">
+            <table class="table overflow-hidden p-0 m-0 @(Model.StartSelectedDate != DateTime.Now.Date ? "" : "refreshFinalShift01")">
+                <thead>
+                    <tr class="align-middle">
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="60px">Shift</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="70px">Assembly Line</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Daily Plan</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Plan</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Act</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Difference</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Loss Time (min)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Time (min)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Start Time</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model End Time</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Opr. Ratio (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">1</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CU</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCUShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanForSummaryCU</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCUShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCUShift_01 < 0 ? "text-danger" : "")" width="110px">@DiffCUShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCUShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeShift_01 > 0 ? WorkingTimeShift_01 : 0)</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCUShift_01 != null ? ModelTimeCUShift_01.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                        </td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCUShift_01 != null ? ModelTimeCUShift_01.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                        </td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCUShift_01 > 0 ? OprRatioCUShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCUShift_01 > 0 ? WorkEffCUShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_01 %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCUShift_01 > 0 ? TotalEffCUShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCUShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCUShift_01, 2))</td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">1</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CS</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCSShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanForSummaryCS</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCSShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCSShift_01 < 0 ? "text-danger" : "")" width="110px">@DiffCSShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCSShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeShift_01 > 0 ? WorkingTimeShift_01 : 0)</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCSShift_01 != null ? ModelTimeCSShift_01.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                        </td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCSShift_01 != null ? ModelTimeCSShift_01.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                        </td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCSShift_01 > 0 ? OprRatioCSShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCSShift_01 > 0 ? WorkEffCSShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_01 %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCSShift_01 > 0 ? TotalEffCSShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_01</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCSShift_01, 2))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        @{
+            // WORKING TIME (SHIFT 2)
+            var StartWorkingTimeShift_02 = new TimeSpan(16, 15, 0);
+            var EndWorkingTimeShift_02 = new TimeSpan(23, 15, 0);
+            var LastWorkingTimeCUShift_02 = Model.GetLastWorkingTime("MCH1-01", StartWorkingTimeShift_02);
+            var LastWorkingTimeCSShift_02 = Model.GetLastWorkingTime("MCH1-02", StartWorkingTimeShift_02);
+
+            int WorkingTimeCUShift_02 = 0;
+            int WorkingTimeCSShift_02 = 0;
+            if (CurrentWorkingTime < StartWorkingTimeShift_02)
+            {
+                WorkingTimeCUShift_02 = 0;
+                WorkingTimeCSShift_02 = 0;
+            }
+
+            // Working Duration CU and CS (SHIFT 2)
+            TimeSpan WorkingDurationCUShift_02 = TimeSpan.Zero;
+            TimeSpan WorkingDurationCSShift_02 = TimeSpan.Zero;
+            if (Model.StartSelectedDate != DateTime.Now.Date)
+            {
+                if (LastWorkingTimeCUShift_02 < EndWorkingTimeShift_02)
+                {
+                    WorkingDurationCUShift_02 = LastWorkingTimeCUShift_02 - StartWorkingTimeShift_02;
+                }
+                else if (LastWorkingTimeCUShift_02 > EndWorkingTimeShift_02) {
+                    WorkingDurationCUShift_02 = EndWorkingTimeShift_02 - StartWorkingTimeShift_02;
+                }
+
+                if (LastWorkingTimeCSShift_02 < EndWorkingTimeShift_02)
+                {
+                    WorkingDurationCSShift_02 = LastWorkingTimeCSShift_02 - StartWorkingTimeShift_02;
+                } 
+                else if (LastWorkingTimeCSShift_02 > EndWorkingTimeShift_02)
+                {
+                    WorkingDurationCSShift_02 = EndWorkingTimeShift_02 - StartWorkingTimeShift_02;
+                }
+            }
+            else
+            {
+                if (CurrentWorkingTime < EndWorkingTimeShift_02)
+                {
+                    WorkingDurationCUShift_02 = CurrentWorkingTime - StartWorkingTimeShift_02;
+                    WorkingDurationCSShift_02 = CurrentWorkingTime - StartWorkingTimeShift_02;
+                } 
+                else
+                {
+                    WorkingDurationCUShift_02 = LastWorkingTimeCUShift_02 - StartWorkingTimeShift_02;
+                    WorkingDurationCSShift_02 = LastWorkingTimeCSShift_02 - StartWorkingTimeShift_02;
+                }
+            }
+            int TotalWorkingTimeCU_02 = (int)WorkingDurationCUShift_02.TotalMinutes;
+            int TotalRestTimeCU_02 = Model.GetTotalRestTime(listRestTime, StartWorkingTimeShift_02, LastWorkingTimeCUShift_02, CurrentWorkingTime);
+            WorkingTimeCUShift_02 = TotalWorkingTimeCU_02 - TotalRestTimeCU_02;
+
+            int TotalWorkingTimeCS_02 = (int)WorkingDurationCSShift_02.TotalMinutes;
+            int TotalRestTimeCS_02 = Model.GetTotalRestTime(listRestTime, StartWorkingTimeShift_02, LastWorkingTimeCSShift_02, CurrentWorkingTime);
+            WorkingTimeCSShift_02 = TotalWorkingTimeCS_02 - TotalRestTimeCS_02;
+
+            // CU ASSEMBLY LINE (SHIFT 2)
+            // Daily Plan (CU SHIFT 2)
+            var PlanCUShift_02 = 0;
+            if (Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { PlanCUShift_02 = Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+            // Actual Quantity (CU SHIFT 2)
+            var TotalActualCUShift_02 = 0;
+            if (Model.GetActualData(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { TotalActualCUShift_02 = Model.GetActualData(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+            // Current SUT Model (CU SHIFT 2)
+            var SUTModelCUShift_02 = 0;
+            if (Model.GetSUTModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { SUTModelCUShift_02 = Model.GetSUTModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").Select(p => p.SUT).First(); }
+
+            // Plan Per SUT (CU SHIFT 2)
+            var ProdAchieveCUShift_02 = Model.GetHourlyAchievement(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").ToList();
+            var TotalPlanSUTCUShift_02 = Model.CalculatePlanPerSUT(PlanCUShift_02, ProdAchieveCUShift_02, listRestTime);
+
+            // Difference Qty (CU SHIFT 2)
+            var DiffCUShift_02 = TotalActualCUShift_02 - TotalPlanSUTCUShift_02;
+
+            // Total Loss Time (CU SHIFT 2)
+            var AssemblyTimeCUShift_02 = Model.GetAssemblyTime(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").ToList();
+            if (AssemblyTimeCUShift_02.Count > 0)
+            {
+                var FirstWorkTimeCUShift_02 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-01",
+                    SUT = AssemblyTimeCUShift_02.First().SUT,
+                    Model = AssemblyTimeCUShift_02.First().Model,
+                    ProductionTime = StartWorkingTimeShift_02
+                };
+                AssemblyTimeCUShift_02.Add(FirstWorkTimeCUShift_02);
+            }
+            var TotalLossTimeCUShift_02 = Model.CalculateTotalLossTime(AssemblyTimeCUShift_02, listRestTime) / 60;
+
+            // Model Start Time & End Time (CU SHIFT 2)
+            var ModelTimeCUShift_02 = Model.GetModelTime(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").FirstOrDefault();
+
+            // Ratio Defect (CU SHIFT 2)
+            var TotalDefectCUShift_02 = Model.GetTotalDefect(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").ToList();
+            var DefectRatioCUShift_02 = 100;
+            if (TotalDefectCUShift_02.Count > 0)
+            { DefectRatioCUShift_02 = (1 - (TotalDefectCUShift_02.First().DefectQty / PlanCUShift_02)) * 100; }
+
+            // Opr Ratio, Work Efficiency & Total Efficiency (CU SHIFT 2)
+            var OprRatioCUShift_02 = Math.Round((((Convert.ToDouble(WorkingTimeCUShift_02) - Convert.ToDouble(TotalLossTimeCUShift_02)) / Convert.ToDouble(WorkingTimeCUShift_02)) * 100), 2);
+            var WorkEffCUShift_02 = Math.Round((Convert.ToDouble(TotalActualCUShift_02) / Convert.ToDouble(TotalPlanSUTCUShift_02)) * 100, 2);
+            var TotalEffCUShift_02 = Math.Round(((OprRatioCUShift_02 / 100) * (WorkEffCUShift_02 / 100)) * 100, 2);
+
+            // # of Change Model (CU SHIFT 2)
+            var ModelChangesCUShift_02 = Model.GetTotalChangeModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").Count();
+
+            // Model Change Time (CU SHIFT 2)
+            var ModelCUShift_02 = Model.GetStartEndModel("MCH1-01", StartWorkingTimeShift_02, EndWorkingTimeShift_02);
+            var ModelTimeChangeCUShift_02 = 0.0;
+            if (ModelCUShift_02 != null && ModelCUShift_02.Count > 1)
+            {
+                for (int i = 1; i < ModelCUShift_02.Count; i++)
+                {
+                    if (ModelCUShift_02[i].Model != ModelCUShift_02[i - 1].Model)
+                    {
+                        ModelTimeChangeCUShift_02 += (ModelCUShift_02[i].StartTime - ModelCUShift_02[i - 1].EndTime).TotalMinutes;
+                    }
+                }
+            }
+
+            // CS ASSEMBLY LINE (SHIFT 2)
+            // Daily Plan (CS SHIFT 2)
+            var PlanCSShift_02 = 0;
+            if (Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { PlanCSShift_02 = Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+
+            // Actual Quantity (CS SHIFT 2)
+            var TotalActualCSShift_02 = 0;
+            if (Model.GetActualData(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { TotalActualCSShift_02 = Model.GetActualData(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+
+            // Current SUT Model (CS SHIFT 2)
+            var SUTModelCSShift_02 = 0;
+            if (Model.GetSUTModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { SUTModelCSShift_02 = Model.GetSUTModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").Select(p => p.SUT).First(); }
+            
+            // Plan SUT CS Shift 02
+            var ProdAchieveCSShift_02 = Model.GetHourlyAchievement(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").ToList();
+            var TotalPlanSUTCSShift_02 = Model.CalculatePlanPerSUT(PlanCSShift_02, ProdAchieveCSShift_02, listRestTime);
+
+            // Difference Qty (CS SHIFT 2)
+            var DiffCSShift_02 = TotalActualCSShift_02 - TotalPlanSUTCSShift_02;
+
+            // Total Loss Time (CS SHIFT 2)
+            var AssemblyTimeCSShift_02 = Model.GetAssemblyTime(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").ToList();
+            if (AssemblyTimeCSShift_02.Count > 0)
+            {
+                var FirstWorkTimeCSShift_02 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-02",
+                    SUT = AssemblyTimeCSShift_02.First().SUT,
+                    Model = AssemblyTimeCSShift_02.First().Model,
+                    ProductionTime = StartWorkingTimeShift_02
+                };
+                AssemblyTimeCSShift_02.Add(FirstWorkTimeCSShift_02);
+            }
+            var TotalLossTimeCSShift_02 = Model.CalculateTotalLossTime(AssemblyTimeCSShift_02, listRestTime) / 60;
+            
+            // Model Start Time & End Time (CS SHIFT 2)
+            var ModelTimeCSShift_02 = Model.GetModelTime(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").FirstOrDefault();
+
+            // Ratio Defect (CS SHIFT 2)
+            var TotalDefectCSShift_02 = Model.GetTotalDefect(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").ToList();
+            var DefectRatioCSShift_02 = 100;
+            if (TotalDefectCSShift_02.Count > 0)
+            { DefectRatioCSShift_02 = (1 - (TotalDefectCSShift_02.First().DefectQty / PlanCSShift_02)) * 100; }
+
+            // Opr Ratio, Work Efficiency & Total Efficiency (CS SHIFT 2)
+            var OprRatioCSShift_02 = Math.Round((((Convert.ToDouble(WorkingTimeCSShift_02) - Convert.ToDouble(TotalLossTimeCSShift_02)) / Convert.ToDouble(WorkingTimeCSShift_02)) * 100), 2);
+            var WorkEffCSShift_02 = Math.Round((Convert.ToDouble(TotalActualCSShift_02) / Convert.ToDouble(TotalPlanSUTCSShift_02)) * 100, 2);
+            var TotalEffCSShift_02 = Math.Round(((OprRatioCSShift_02 / 100) * (WorkEffCSShift_02 / 100)) * 100, 2);
+
+            // # of Change Model (CS SHIFT 2)
+            var ModelChangesCSShift_02 = Model.GetTotalChangeModel(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").Count();
+
+            // Model Change Time (CS SHIFT 2)
+            var ModelCSShift_02 = Model.GetStartEndModel("MCH1-02", StartWorkingTimeShift_02, EndWorkingTimeShift_02);
+            var ModelTimeChangeCSShift_02 = 0.0;
+            if (ModelCSShift_02 != null && ModelCSShift_02.Count > 1)
+            {
+                for (int i = 1; i < ModelCSShift_02.Count; i++)
+                {
+                    if (ModelCSShift_02[i].Model != ModelCSShift_02[i - 1].Model)
+                    {
+                        ModelTimeChangeCSShift_02 += (ModelCSShift_02[i].StartTime - ModelCSShift_02[i - 1].EndTime).TotalMinutes;
+                    }
+                }
+            }
+        }
+        <div class="text-center mt-3 mx-3 table-responsive card rounded-3 p-0 m-0 @(Model.StartSelectedDate == DateTime.Now.Date && DateTime.Now.TimeOfDay >= new TimeSpan(16,15,0) ? "border-success border-4":"")" id="ShiftBTable">
+            <table class="table overflow-hidden p-0 m-0 @(Model.StartSelectedDate != DateTime.Now.Date ? "" : "refreshFinalShift02")">
+                <thead>
+                    <tr class="align-middle">
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="60px">Shift</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="70px">Assembly Line</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Daily Plan</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Plan</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Act</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Difference</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Loss Time (min)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Time (min)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Start Time</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model End Time</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Opr. Ratio (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">2</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CU</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCUShift_02 < 0 ? "text-danger" : "")" width="110px">@DiffCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeCUShift_02 > 0 ? WorkingTimeCUShift_02 : 0 )</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCUShift_02 != null ? ModelTimeCUShift_02.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCUShift_02 != null ? ModelTimeCUShift_02.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCUShift_02 > 0 ? OprRatioCUShift_02 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCUShift_02 > 0 ? WorkEffCUShift_02 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_02 %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCUShift_02 > 0 ? TotalEffCUShift_02 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCUShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCUShift_02, 2))</td>
+                    </tr>
+                    <tr class="align-middle">
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">2</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CS</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCSShift_02 < 0 ? "text-danger" : "")" width="110px">@DiffCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeCSShift_02 > 0 ? WorkingTimeCSShift_02 : 0 )</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                              @(ModelTimeCSShift_02 != null ? ModelTimeCSShift_02.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                              @(ModelTimeCSShift_02 != null ? ModelTimeCSShift_02.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCSShift_02 > 0 ? OprRatioCSShift_02  : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCSShift_02 > 0 ? WorkEffCSShift_02 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_02 %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCSShift_02 > 0 ? TotalEffCSShift_02 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_02</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCSShift_02, 2))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        @{
+            // WORKING TIME (SHIFT 3)
+            var CurrentWorkingTime_03 = DateTime.Now;
+            var StartWorkingTimeShift_03 = Model.StartSelectedDate.AddHours(23).AddMinutes(15);
+            var EndWorkingTimeShift_03   = Model.StartSelectedDate.AddDays(1).Date.AddHours(7);
+            var LastWorkingTimeCUShift_03 = Model.GetLastWorkingTime_03("MCH1-01", StartWorkingTimeShift_03, EndWorkingTimeShift_03);
+            var LastWorkingTimeCSShift_03 = Model.GetLastWorkingTime_03("MCH1-02", StartWorkingTimeShift_03, EndWorkingTimeShift_03);
+            
+            int WorkingTimeCUShift_03 = 0;
+            int WorkingTimeCSShift_03 = 0;
+            if (CurrentWorkingTime_03 < StartWorkingTimeShift_03)
+            {
+                WorkingTimeCUShift_03 = 0;
+                WorkingTimeCSShift_03 = 0;
+            }
+
+            // Working Duration CU and CS (SHIFT 3)
+            TimeSpan WorkingDurationCUShift_03 = TimeSpan.Zero;
+            TimeSpan WorkingDurationCSShift_03 = TimeSpan.Zero;
+            if (Model.StartSelectedDate != DateTime.Now.Date)
+            {
+                if (LastWorkingTimeCUShift_03 < EndWorkingTimeShift_03)
+                {
+                    WorkingDurationCUShift_03 = LastWorkingTimeCUShift_03 - StartWorkingTimeShift_03;
+                }
+                else if (LastWorkingTimeCUShift_03 > EndWorkingTimeShift_03)
+                {
+                    WorkingDurationCUShift_03 = EndWorkingTimeShift_03 - StartWorkingTimeShift_03;
+                }
+
+                if (LastWorkingTimeCSShift_03 < EndWorkingTimeShift_03)
+                {
+                    WorkingDurationCSShift_03 = LastWorkingTimeCSShift_03 - StartWorkingTimeShift_03;
+                }
+                else if (LastWorkingTimeCSShift_03 > EndWorkingTimeShift_03)
+                {
+                    WorkingDurationCSShift_03 = EndWorkingTimeShift_03 - StartWorkingTimeShift_03;
+                }
+            }
+            else
+            {
+                if (CurrentWorkingTime_03 < EndWorkingTimeShift_03)
+                {
+                    WorkingDurationCUShift_03 = CurrentWorkingTime_03 - StartWorkingTimeShift_03;
+                    WorkingDurationCSShift_03 = CurrentWorkingTime_03 - StartWorkingTimeShift_03;
+                }
+                else
+                {
+                    WorkingDurationCUShift_03 = LastWorkingTimeCUShift_03 - StartWorkingTimeShift_03;
+                    WorkingDurationCSShift_03 = LastWorkingTimeCSShift_03 - StartWorkingTimeShift_03;
+                }
+            }
+            int TotalWorkingTimeCU_03 = (int)WorkingDurationCUShift_03.TotalMinutes;
+            int TotalRestTimeCU_03 = Model.GetTotalRestTime_03(listRestTime, StartWorkingTimeShift_03, LastWorkingTimeCUShift_03, CurrentWorkingTime);
+            WorkingTimeCUShift_03 = TotalWorkingTimeCU_03 - TotalRestTimeCU_03;
+
+            int TotalWorkingTimeCS_03 = (int)WorkingDurationCSShift_03.TotalMinutes;
+            int TotalRestTimeCS_03 = Model.GetTotalRestTime_03(listRestTime, StartWorkingTimeShift_03, LastWorkingTimeCSShift_03, CurrentWorkingTime);
+            WorkingTimeCSShift_03 = TotalWorkingTimeCS_03 - TotalRestTimeCS_03;
+
+            // CU ASSEMBLY LINE (SHIFT 3)
+            // Daily Plan (CU SHIFT 3)
+            var PlanCUShift_03 = 0;
+            if (Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { PlanCUShift_03 = Model.plansQty.Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+            // Actual Quantity (CU SHIFT 3)
+            var TotalActualCUShift_03 = 0;
+            if (Model.GetActualData_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { TotalActualCUShift_03 = Model.GetActualData_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").Select(p => p.Quantity).First(); }
+
+            // Current SUT Model (CU SHIFT 3)
+            var SUTModelCUShift_03 = 0;
+            if (Model.GetSUTModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").Count() > 0)
+            { SUTModelCUShift_03 = Model.GetSUTModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").Select(p => p.SUT).First(); }
+
+            // Plan Per SUT (CU SHIFT 3)
+            var ProdAchieveCUShift_03 = Model.GetHourlyAchievement_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").ToList();
+            var TotalPlanSUTCUShift_03 = Model.CalculatePlanPerSUT(PlanCUShift_03, ProdAchieveCUShift_03, listRestTime);
+
+            // Difference Qty (CU SHIFT 3)
+            var DiffCUShift_03 = TotalActualCUShift_03 - TotalPlanSUTCUShift_03;
+
+            // Total Loss Time (CU SHIFT 3)
+            var AssemblyTimeCUShift_03 = Model.GetAssemblyTime_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").ToList();
+            if (AssemblyTimeCUShift_03.Count > 0)
+            {
+                var FirstWorkTimeCUShift_03 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-01",
+                    SUT = AssemblyTimeCUShift_03.First().SUT,
+                    Model = AssemblyTimeCUShift_03.First().Model,
+                    ProductionTime = StartWorkingTimeShift_03.TimeOfDay
+                };
+                AssemblyTimeCUShift_03.Add(FirstWorkTimeCUShift_03);
+            }
+            var TotalLossTimeCUShift_03 = Model.CalculateTotalLossTime(AssemblyTimeCUShift_03, listRestTime) / 60;
+
+            // Model Start Time & End Time (CU SHIFT 3)
+            var ModelTimeCUShift_03 = Model.GetModelTime_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").FirstOrDefault();
+
+            // Ratio Defect (CU SHIFT 3)
+            var TotalDefectCUShift_03 = Model.GetTotalDefect_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").ToList();
+            var DefectRatioCUShift_03 = 100;
+            if (TotalDefectCUShift_03.Count > 0)
+            { DefectRatioCUShift_03 = (1 - (TotalDefectCUShift_03.First().DefectQty / PlanCUShift_03)) * 100; }
+
+            // Opr Ratio, Work Efficiency & Total Efficiency (CU SHIFT 3)
+            var OprRatioCUShift_03 = Math.Round((((Convert.ToDouble(WorkingTimeCUShift_03) - Convert.ToDouble(TotalLossTimeCUShift_03)) / Convert.ToDouble(WorkingTimeCUShift_03)) * 100), 2);
+            var WorkEffCUShift_03 = Math.Round((Convert.ToDouble(TotalActualCUShift_03) / Convert.ToDouble(TotalPlanSUTCUShift_03)) * 100, 2);
+            var TotalEffCUShift_03 = Math.Round(((OprRatioCUShift_03 / 100) * (WorkEffCUShift_03 / 100)) * 100, 2);
+
+            // # of Change Model (CU SHIFT 3)
+            var ModelChangesCUShift_03 = Model.GetTotalChangeModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-01").Count();
+
+            // Model Change Time (CU SHIFT 3)
+            var ModelCUShift_03 = Model.GetStartEndModel_03("MCH1-01", StartWorkingTimeShift_03, EndWorkingTimeShift_03);
+            var ModelTimeChangeCUShift_03 = 0.0;
+            if (ModelCUShift_03 != null && ModelCUShift_03.Count > 1)
+            {
+                for (int i = 1; i < ModelCUShift_03.Count; i++)
+                {
+                    if (ModelCUShift_03[i].Model != ModelCUShift_03[i - 1].Model)
+                    {
+                        ModelTimeChangeCUShift_03 += (ModelCUShift_03[i].StartTime - ModelCUShift_03[i - 1].EndTime).TotalMinutes;
+                    }
+                }
+            }
+
+            // CS ASSEMBLY LINE (SHIFT 3)
+            // Daily Plan (CS SHIFT 3)
+            var PlanCSShift_03 = 0;
+            if (Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { PlanCSShift_03 = Model.plansQty.Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+
+            // Actual Quantity (CS SHIFT 3)
+            var TotalActualCSShift_03 = 0;
+            if (Model.GetActualData_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { TotalActualCSShift_03 = Model.GetActualData_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").Select(p => p.Quantity).First(); }
+
+            // Current SUT Model (CS SHIFT 3)
+            var SUTModelCSShift_03 = 0;
+            if (Model.GetSUTModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").Count() > 0)
+            { SUTModelCSShift_03 = Model.GetSUTModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").Select(p => p.SUT).First(); }
+
+            // Plan Per SUT (CS SHIFT 3)
+            var ProdAchieveCSShift_03 = Model.GetHourlyAchievement_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").ToList();
+            var TotalPlanSUTCSShift_03 = Model.CalculatePlanPerSUT(PlanCSShift_03, ProdAchieveCSShift_03, listRestTime);
+
+            // Difference Qty (CS SHIFT 3)
+            var DiffCSShift_03 = TotalActualCSShift_03 - TotalPlanSUTCSShift_03;
+
+            // Total Loss Time (CS SHIFT 3)
+            var AssemblyTimeCSShift_03 = Model.GetAssemblyTime_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").ToList();
+            if (AssemblyTimeCSShift_03.Count > 0)
+            {
+                var FirstWorkTimeCSShift_03 = new SummaryModel.AssemblyTime
+                {
+                    MachineCode = "MCH1-02",
+                    SUT = AssemblyTimeCSShift_03.First().SUT,
+                    Model = AssemblyTimeCSShift_03.First().Model,
+                    ProductionTime = StartWorkingTimeShift_03.TimeOfDay
+                };
+                AssemblyTimeCSShift_03.Add(FirstWorkTimeCSShift_03);
+            }
+            var TotalLossTimeCSShift_03 = Model.CalculateTotalLossTime(AssemblyTimeCSShift_03, listRestTime) / 60;
+
+            // Model Start Time & End Time (CS SHIFT 3)
+            var ModelTimeCSShift_03 = Model.GetModelTime_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").FirstOrDefault();
+
+            // Ratio Defect (CS SHIFT 3)
+            var TotalDefectCSShift_03 = Model.GetTotalDefect_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").ToList();
+            var DefectRatioCSShift_03 = 100;
+            if (TotalDefectCSShift_03.Count > 0)
+            { DefectRatioCSShift_03 = (1 - (TotalDefectCSShift_03.First().DefectQty / PlanCSShift_03)) * 100; }
+
+            // Opr Ratio, Work Efficiency & Total Efficiency (CS SHIFT 3)
+            var OprRatioCSShift_03 = Math.Round((((Convert.ToDouble(WorkingTimeCSShift_03) - Convert.ToDouble(TotalLossTimeCSShift_03)) / Convert.ToDouble(WorkingTimeCSShift_03)) * 100), 2);
+            var WorkEffCSShift_03 = Math.Round((Convert.ToDouble(TotalActualCSShift_03) / Convert.ToDouble(TotalPlanSUTCSShift_03)) * 100, 2);
+            var TotalEffCSShift_03 = Math.Round(((OprRatioCSShift_03 / 100) * (WorkEffCSShift_03 / 100)) * 100, 2);
+
+            // # of Change Model (CS SHIFT 3)
+            var ModelChangesCSShift_03 = Model.GetTotalChangeModel_03(StartWorkingTimeShift_03, EndWorkingTimeShift_03).Where(p => p.MachineCode == "MCH1-02").Count();
+
+            // Model Change Time (CS SHIFT 3)
+            var ModelCSShift_03 = Model.GetStartEndModel_03("MCH1-02", StartWorkingTimeShift_03, EndWorkingTimeShift_03);
+            var ModelTimeChangeCSShift_03 = 0.0;
+            if (ModelCSShift_03 != null && ModelCSShift_03.Count > 1)
+            {
+                for (int i = 1; i < ModelCSShift_03.Count; i++)
+                {
+                    if (ModelCSShift_03[i].Model != ModelCSShift_03[i - 1].Model)
+                    {
+                        ModelTimeChangeCSShift_03 += (ModelCSShift_03[i].StartTime - ModelCSShift_03[i - 1].EndTime).TotalMinutes;
+                    }
+                }
+            }
+        }
+        <div class="text-center mt-3 mx-3 table-responsive card rounded-3 p-0 m-0 @(Model.StartSelectedDate == DateTime.Now.Date && DateTime.Now.TimeOfDay >= new TimeSpan(16,15,0) ? "border-success border-4":"")" id="ShiftCTable">
+            <table class="table overflow-hidden p-0 m-0 @(Model.StartSelectedDate != DateTime.Now.Date ? "" : "refreshFinalShift03")">
+                <thead>
+                    <tr class="align-middle">
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="60px">Shift</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="70px">Assembly Line</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Daily Plan</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Plan</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Act</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Difference</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Loss Time (min)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Time (min)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Start Time</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model End Time</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Opr. Ratio (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
+                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">3</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CU</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCUShift_03 < 0 ? "text-danger" : "")" width="110px">@DiffCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeCUShift_03 > 0 ? WorkingTimeCUShift_03 : 0)</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                             @(ModelTimeCUShift_03 != null ? ModelTimeCUShift_03.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(ModelTimeCUShift_03 != null ? ModelTimeCUShift_03.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCUShift_03 > 0 ? OprRatioCUShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCUShift_03 > 0 ? WorkEffCUShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_03 %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCUShift_03 > 0 ? TotalEffCUShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCUShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCUShift_03, 2))</td>
+                    </tr>
+                    <tr class="align-middle">
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">3</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CS</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCSShift_03 < 0 ? "text-danger" : "")" width="110px">@DiffCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkingTimeCSShift_03 > 0 ? WorkingTimeCSShift_03 : 0)</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                             @(ModelTimeCSShift_03 != null ? ModelTimeCSShift_03.StartTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                             @(ModelTimeCSShift_03 != null ? ModelTimeCSShift_03.EndTime.ToString(@"hh\:mm\:ss") : TimeSpan.Zero)
+                         </td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(OprRatioCSShift_03 > 0 ? OprRatioCSShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCSShift_03 > 0 ? WorkEffCSShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_03 %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCSShift_03 > 0 ? TotalEffCSShift_03 : 0) %</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_03</td>
+                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCSShift_03, 2))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="text-center mt-3 mx-3 table-responsive card rounded-3 p-0 m-0 border border-2" style="border-color: rgb(61, 121, 176);">
+            <table class="table overflow-hidden p-0 m-0 @(Model.StartSelectedDate != DateTime.Now.Date ? "" : "refreshFinalTotal")">
+                 <thead>
+                        <tr class="align-middle">
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="170px">Total Overall</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Daily Plan</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Plan</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Act</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Difference</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Loss Time (min)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Time (min)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Start Time</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model End Time</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Opr. Ratio (%)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
+                            <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
+                        </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="170px">Total CU</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCUShift_01</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalPlanSUTCUShift_01 + TotalPlanSUTCUShift_02 + TotalPlanSUTCUShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalActualCUShift_01 + TotalActualCUShift_02 + TotalActualCUShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @((DiffCUShift_03 + DiffCUShift_02 + DiffCUShift_01) < 0 ? "text-danger" : "")" width="110px">@(DiffCUShift_03 + DiffCUShift_02 + DiffCUShift_01)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalLossTimeCUShift_01 + TotalLossTimeCUShift_02)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @((WorkingTimeShift_01 > 0 ? WorkingTimeShift_01 : 0) + (WorkingTimeCUShift_02 > 0 ? WorkingTimeCUShift_02 : 0) + (WorkingTimeCUShift_03 > 0 ? WorkingTimeCUShift_03 : 0))
+                        </td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">-</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">-</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(Math.Round(((OprRatioCUShift_01 > 0 ? OprRatioCUShift_01 : 0) + (OprRatioCUShift_02 > 0 ? OprRatioCUShift_02 : 0) + (OprRatioCUShift_03 > 0 ? OprRatioCUShift_03 : 0)), 2)) %
+                        </td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">
+                            @(Math.Round(((WorkEffCUShift_01 > 0 ? WorkEffCUShift_01 : 0) + (WorkEffCUShift_02 > 0 ? WorkEffCUShift_02 : 0) + (WorkEffCUShift_03 > 0 ? WorkEffCUShift_03 : 0)), 2)) %
+                        </td>
+                        @if (Model.StartSelectedDate != DateTime.Now.Date || DateTime.Now.TimeOfDay >= new TimeSpan(16, 15, 0))
+                        {
+                            <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_02 %</td>
+                        }
+                        else
+                        {
+                            <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_01 %</td>
+                        }
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(((TotalEffCUShift_01 > 0 ? TotalEffCUShift_01 : 0) + (TotalEffCUShift_02 > 0 ? TotalEffCUShift_02 : 0) + (TotalEffCUShift_03 > 0 ? TotalEffCUShift_03 : 0)), 2)) %</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(ModelChangesCUShift_01 + ModelChangesCUShift_02 + ModelChangesCUShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round((ModelTimeChangeCUShift_02 + ModelTimeChangeCUShift_01 + ModelTimeChangeCUShift_03), 2))</td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="170px">Total CS</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCSShift_01</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalPlanSUTCSShift_01 + TotalPlanSUTCSShift_02 + TotalPlanSUTCSShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalActualCSShift_01 + TotalActualCSShift_02 + TotalActualCSShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium @((DiffCSShift_02 + DiffCSShift_01 + DiffCSShift_03) < 0 ? "text-danger" : "")" width="110px">@(DiffCSShift_02 + DiffCSShift_01 + DiffCSShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalLossTimeCSShift_01 + TotalLossTimeCSShift_02 + TotalLossTimeCSShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@((WorkingTimeShift_01 > 0 ? WorkingTimeShift_01 : 0) + (WorkingTimeCSShift_02 > 0 ? WorkingTimeCSShift_02 : 0) + (WorkingTimeCSShift_03 > 0 ? WorkingTimeCSShift_03 : 0))</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">-</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">-</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(((OprRatioCSShift_01 > 0 ? OprRatioCSShift_01 : 0) + (OprRatioCSShift_02 > 0 ? OprRatioCSShift_02 : 0) + (OprRatioCSShift_03 > 0 ? OprRatioCSShift_03 : 0)), 2)) %</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(((WorkEffCSShift_01 > 0 ? WorkEffCSShift_01 : 0) + (WorkEffCSShift_02 > 0 ? WorkEffCSShift_02 : 0) + (WorkEffCSShift_03 > 0 ? WorkEffCSShift_03 : 0)), 2)) %</td>
+                        @if (Model.StartSelectedDate != DateTime.Now.Date || DateTime.Now.TimeOfDay >= new TimeSpan(16, 15, 0))
+                        {
+                            <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_02 %</td>
+                        }
+                        else
+                        {
+                            <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_01 %</td>
+                        }
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(((TotalEffCSShift_01 > 0 ? TotalEffCSShift_01 : 0) + (TotalEffCSShift_02 > 0 ? TotalEffCSShift_02 : 0) + (TotalEffCSShift_03 > 0 ? TotalEffCSShift_03 : 0)), 2)) %</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(ModelChangesCSShift_01 + ModelChangesCSShift_02 + ModelChangesCSShift_03)</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round((ModelTimeChangeCSShift_02 + ModelTimeChangeCSShift_01 + ModelTimeChangeCSShift_03), 2))</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

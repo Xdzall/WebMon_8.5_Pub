@@ -1,0 +1,10 @@
+﻿.nav-menu a {
+    color: #fff;
+    text-decoration: none;
+    border-radius: 10px;
+    padding: 13px 5px;
+}
+
+.nav-menu a:hover {
+    background: rgba(240, 240, 240);
+}

@@ -1,0 +1,625 @@
+﻿@page
+@using MonitoringSystem.Pages.Perfomance
+@model MonitoringSystem.Pages.Performance.PerformanceModel
+@{
+    ViewData["Title"] = "Production Performance";
+
+    // Extract key time values
+    var currentTime = DateTime.Now.TimeOfDay;
+    var currentDate = DateTime.Now.Date;
+    var currentDay = DateTime.Today.DayOfWeek;
+    var startWorkingTime = new TimeSpan(7, 0, 0);
+    var endWorkingTime = Model.GetLastWorkingTime("MCH1-01");
+
+    // Get rest time periods based on day type
+    var listRestTime = Model.GetRestTime(Model.DetermineTypeOfDay(currentDay));
+
+    // Calculate working time metrics
+    var workingTimeData = CalculateWorkingTime(Model.SelectedDate, currentTime, startWorkingTime, endWorkingTime, listRestTime);
+    var workingTime = workingTimeData.WorkingTime;
+    var totalLossTime = Model.CalculateTotalLossTime(Model.assemblyTimes, listRestTime) / 60;
+
+    // Initialize first assembly time record if needed
+    InitializeFirstAssemblyTime();
+
+    // Calculate production metrics using hourly achievement data
+    var hourlyPlans = CalculateAllHourlyPlans();
+    var planProd = hourlyPlans.Sum(); // Sum of all hourly plans
+   
+    var totalPlanForCU = CalculateAllHourlyPlansForCU().Sum();  // Total plan untuk CU
+    var totalPlanForCS = CalculateAllHourlyPlansForCS().Sum();  // Total plan untuk CS
+    System.Diagnostics.Debug.WriteLine($"totalPlanForCU: " + totalPlanForCU);
+    System.Diagnostics.Debug.WriteLine($"totalPlanForCS: " + totalPlanForCS);
+    // Simpan total plan ke database
+    Model.SavePlanToDatabase(totalPlanForCU, "MCH1-01");
+    Model.SavePlanToDatabase(totalPlanForCS, "MCH1-02");
+
+    var productionMetrics = CalculateProductionMetrics(Model.listProdAchieve, currentDate, currentTime, listRestTime, planProd);
+    var targetProd = productionMetrics.TargetProd;
+
+    // Get production statistics
+    var actualProd = Model.GetActualProduction();
+    var differenceProd = actualProd - targetProd;
+    var planTaktTime = Model.GetPlanTaktTime();
+
+    // Calculate efficiency metrics
+    var efficiencyMetrics = CalculateEfficiencyMetrics(workingTime, totalLossTime, planTaktTime, actualProd);
+
+    // Get defect data
+    var totalDefect = Model.GetTotalDefect();
+    var defectRatio = planProd > 0 ? (100 - ((totalDefect / planProd) * 100)) : 0;
+
+    // Get hourly data for chart
+    var actualData = Model.GetActualPerHour();
+    var timeCounts = Model.listProdAchieve.GroupBy(item => item.Time).ToDictionary(group => group.Key, group => group.Count());
+
+    // Calculate cumulative efficiency data for chart
+    var efficiencyData = CalculateCumulativeEfficiency(actualData, hourlyPlans, workingTime, totalLossTime, planTaktTime);
+}
+
+@functions {
+    private class WorkingTimeData
+    {
+        public int WorkingTime { get; set; }
+        public int TotalWorkingTime { get; set; }
+        public int TotalRestTime { get; set; }
+    }
+
+    private class ProductionMetrics
+    {
+        public int TargetProd { get; set; }
+    }
+
+    private class EfficiencyMetrics
+    {
+        public double OprRatio { get; set; }
+        public double WorkEff { get; set; }
+        public double EffProd { get; set; }
+        public double ActTaktTime { get; set; }
+    }
+
+    private class EfficiencyData
+    {
+        public List<string> Labels { get; set; } = new List<string>();
+        public List<double> CumulativeEfficiency { get; set; } = new List<double>();
+    }
+
+    private WorkingTimeData CalculateWorkingTime(DateTime selectedDate, TimeSpan currentTime, TimeSpan startWorkingTime, TimeSpan endWorkingTime, List<Performance.PerformanceModel.RestTime> listRestTime)
+    {
+        var result = new WorkingTimeData();
+
+        // Calculate working duration
+        TimeSpan workingDuration = selectedDate != DateTime.Now.Date
+            ? endWorkingTime - startWorkingTime
+            : currentTime - startWorkingTime;
+
+        // Set working time to 0 if before start time
+        if (currentTime < startWorkingTime)
+        {
+            result.WorkingTime = 0;
+        }
+
+        // Calculate total working minutes
+        result.TotalWorkingTime = (int)workingDuration.TotalMinutes;
+
+        // Calculate total rest time
+        result.TotalRestTime = listRestTime.Sum(rest =>
+        {
+            TimeSpan restStart = rest.StartTime < startWorkingTime ? startWorkingTime : rest.StartTime;
+            TimeSpan restEnd = rest.EndTime > endWorkingTime ? endWorkingTime : rest.EndTime;
+
+            if (selectedDate == DateTime.Now.Date)
+            {
+                restStart = restStart > currentTime ? currentTime : restStart;
+                restEnd = restEnd > currentTime ? currentTime : restEnd;
+            }
+
+            return restStart < restEnd ? (int)(restEnd - restStart).TotalMinutes : 0;
+        });
+
+        // Calculate actual working time
+        result.WorkingTime = result.TotalWorkingTime - result.TotalRestTime;
+
+        return result;
+    }
+
+    private void InitializeFirstAssemblyTime()
+    {
+        if (Model.assemblyTimes.Count > 0)
+        {
+            var firstTime = new Performance.PerformanceModel.AssemblyTime
+                {
+                    Model = Model.assemblyTimes.First().Model,
+                    MachineCode = Model.MachineCode,
+                    SUT = Model.assemblyTimes.First().SUT,
+                    ProductionTime = new TimeSpan(7, 0, 0)
+                };
+            Model.assemblyTimes.Add(firstTime);
+        }
+    }
+
+    private List<int> CalculateAllHourlyPlans()
+    {
+        var hourlyPlans = new List<int>();
+        var previousModel = "";
+        var currentTime = DateTime.Now.TimeOfDay;
+        var currentDate = DateTime.Now.Date;
+        var listRestTime = Model.GetRestTime(Model.DetermineTypeOfDay(DateTime.Today.DayOfWeek));
+        var iterasi = 0;
+        foreach (var achievement in Model.listProdAchieve
+                            .OrderByDescending(item => item.Time)
+                            .ToList())
+        {
+            var planPerHour = CalculatePlanPerHour(
+                achievement.Model,
+                previousModel,
+                achievement.StartTime,
+                achievement.EndTime,
+                currentTime,
+                currentDate,
+                achievement.SUT,
+                listRestTime
+            );
+            hourlyPlans.Add(planPerHour);
+            iterasi++;
+            System.Diagnostics.Debug.WriteLine($"iterasi ke-"+ iterasi + planPerHour);
+            previousModel = achievement.Model;
+        }
+
+        return hourlyPlans;
+    }    
+    public List<int> CalculateAllHourlyPlansForCU()
+    {
+        var hourlyPlans = new List<int>();
+        var previousModel = "";
+        var currentTime = DateTime.Now.TimeOfDay;
+        var currentDate = DateTime.Now.Date;
+        var listRestTime = Model.GetRestTime(Model.DetermineTypeOfDay(DateTime.Today.DayOfWeek));
+        var iterasi = 0;
+        foreach (var achievement in Model.listProdAchieve
+                            .Where(a => a.Model == "MCH1-01")
+                            .OrderByDescending(item => item.Time)
+                            .ToList())
+        {
+            var planPerHour = CalculatePlanPerHour(
+                achievement.Model,
+                previousModel,
+                achievement.StartTime,
+                achievement.EndTime,
+                currentTime,
+                currentDate,
+                achievement.SUT,
+                listRestTime
+            );
+            hourlyPlans.Add(planPerHour);
+            iterasi++;
+            System.Diagnostics.Debug.WriteLine($"iterasi ke-"+ iterasi + planPerHour);
+            previousModel = achievement.Model;
+        }
+
+        return hourlyPlans;
+    }    
+    public List<int> CalculateAllHourlyPlansForCS()
+    {
+        var hourlyPlans = new List<int>();
+        var previousModel = "";
+        var currentTime = DateTime.Now.TimeOfDay;
+        var currentDate = DateTime.Now.Date;
+        var listRestTime = Model.GetRestTime(Model.DetermineTypeOfDay(DateTime.Today.DayOfWeek));
+        var iterasi = 0;
+        foreach (var achievement in Model.listProdAchieve
+                                            .Where(a => a.Model == "MCH1-02")
+                            .OrderByDescending(item => item.Time)
+                            .ToList())
+        {
+            var planPerHour = CalculatePlanPerHour(
+                achievement.Model,
+                previousModel,
+                achievement.StartTime,
+                achievement.EndTime,
+                currentTime,
+                currentDate,
+                achievement.SUT,
+                listRestTime
+            );
+            hourlyPlans.Add(planPerHour);
+            iterasi++;
+            System.Diagnostics.Debug.WriteLine($"iterasi ke-"+ iterasi + planPerHour);
+            previousModel = achievement.Model;
+        }
+
+        return hourlyPlans;
+    }
+
+    private ProductionMetrics CalculateProductionMetrics(List<Performance.PerformanceModel.ProductionAchievement> listProdAchieve,
+                                                       DateTime currentDate, TimeSpan currentTime,
+                                                       List<Performance.PerformanceModel.RestTime> listRestTime,
+                                                       int planProd)
+    {
+        var result = new ProductionMetrics { TargetProd = 0 };
+        var previousModel = "";
+
+        if (listProdAchieve.Count > 0)
+        {
+            for (int i = 0; i < listProdAchieve.Count; i++)
+            {
+                var currentModel = listProdAchieve[i].Model;
+                var sut = listProdAchieve[i].SUT;
+                var startTime = listProdAchieve[i].StartTime;
+                var endTime = listProdAchieve[i].EndTime;
+                var planSUT = 0;
+
+                // Calculate model-specific time ranges
+                var firstTime_Model = TimeSpan.Zero;
+                var lastTime_Model = TimeSpan.Zero;
+                var quantityPlan = 0;
+
+                if (currentModel != null)
+                {
+                    firstTime_Model = Model.GetFirstTimeModel(startTime, endTime, currentModel);
+                    lastTime_Model = Model.GetLastTimeModel(startTime, endTime, currentModel);
+                    quantityPlan = Model.GetModelPlan(currentModel);
+                }
+
+                // Calculate plan based on current date, time and model
+                if (Model.SelectedDate == currentDate)
+                {
+                    if (currentTime >= startTime && currentTime <= endTime)
+                    {
+                        planSUT = currentModel == previousModel
+                            ? Model.CalculatePlan(startTime, currentTime, sut, listRestTime)
+                            : Model.CalculatePlan(firstTime_Model, lastTime_Model, sut, listRestTime);
+                    }
+                    else
+                    {
+                        planSUT = currentModel == previousModel
+                            ? Model.CalculatePlan(startTime, endTime, sut, listRestTime)
+                            : Model.CalculatePlan(firstTime_Model, endTime, sut, listRestTime);
+                    }
+                }
+                else
+                {
+                    planSUT = currentModel == previousModel
+                        ? Model.CalculatePlan(startTime, endTime, sut, listRestTime)
+                        : Model.CalculatePlan(firstTime_Model, endTime, sut, listRestTime);
+                }
+
+                // Ensure plan doesn't exceed quantity plan
+                planSUT = Math.Min(planSUT, quantityPlan);
+                previousModel = currentModel;
+
+                // Update target production
+                result.TargetProd += planSUT;
+                result.TargetProd = Math.Min(result.TargetProd, planProd);
+            }
+        }
+
+        return result;
+    }
+
+    private EfficiencyMetrics CalculateEfficiencyMetrics(int workingTime, double totalLossTime, int planTaktTime, int actualProd)
+    {
+        var result = new EfficiencyMetrics();
+
+        // Operating ratio calculation
+        result.OprRatio = Math.Round((((Convert.ToDouble(workingTime) - Convert.ToDouble(totalLossTime)) / Convert.ToDouble(workingTime)) * 100), 2);
+
+        // Work efficiency calculation
+        result.WorkEff = Math.Round((((Convert.ToDouble(planTaktTime) / 60) * actualProd) / (Convert.ToDouble(workingTime) - Convert.ToDouble(totalLossTime))) * 100, 2);
+
+        // Production efficiency calculation
+        result.EffProd = Math.Round(((result.OprRatio / 100) * (result.WorkEff / 100)) * 100, 2);
+
+        // Actual takt time calculation
+        result.ActTaktTime = Math.Round((((Convert.ToDouble(workingTime) - Convert.ToDouble(totalLossTime)) / Convert.ToDouble(actualProd)) * 60), 2);
+
+        return result;
+    }
+
+    private EfficiencyData CalculateCumulativeEfficiency(List<Performance.PerformanceModel.ActualData> actualData, List<int> hourlyPlans, int totalWorkingTime, double totalLossTime, int planTaktTime)
+    {
+        var result = new EfficiencyData();
+        var cumulativeActual = 0;
+        var cumulativePlan = 0;
+
+        // Add initial point
+        result.Labels.Add("07:00");
+        result.CumulativeEfficiency.Add(0);
+
+        for (int i = 1; i < actualData.Count && i <= hourlyPlans.Count; i++)
+        {
+            cumulativeActual += actualData[i].Actual;
+            cumulativePlan += (i <= hourlyPlans.Count) ? hourlyPlans[i - 1] : 0;
+
+            // Calculate cumulative efficiency
+            double efficiency = 0;
+            if (cumulativePlan > 0)
+            {
+                efficiency = Math.Round((double)cumulativeActual / cumulativePlan * 100, 2);
+            }
+
+            result.Labels.Add(actualData[i].EndTime);
+            result.CumulativeEfficiency.Add(efficiency);
+        }
+
+        return result;
+    }
+
+    private int CalculatePlanPerHour(string currentModel, string previousModel, TimeSpan startTime, TimeSpan endTime,
+                                  TimeSpan currentTime, DateTime currentDate, int sut,
+                                  List<Performance.PerformanceModel.RestTime> listRestTime)
+    {
+        var firstTimeModel = TimeSpan.Zero;
+        var lastTimeModel = TimeSpan.Zero;
+        var qtyPlan = 1;
+        int planPerHour = 1;
+
+        if (currentModel != null)
+        {
+            firstTimeModel = Model.GetFirstTimeModel(startTime, endTime, currentModel);
+            lastTimeModel = Model.GetLastTimeModel(startTime, endTime, currentModel);
+            qtyPlan = Model.GetModelPlan(currentModel);
+        }
+
+        if (Model.SelectedDate == currentDate)
+        {
+            if (currentTime >= startTime && currentTime <= endTime)
+            {
+                planPerHour = currentModel == previousModel
+                    ? Model.CalculatePlan(startTime, currentTime, sut, listRestTime)
+                    : Model.CalculatePlan(firstTimeModel, lastTimeModel, sut, listRestTime);
+            }
+            else
+            {
+                planPerHour = currentModel == previousModel
+                    ? Model.CalculatePlan(startTime, endTime, sut, listRestTime)
+                    : Model.CalculatePlan(firstTimeModel, lastTimeModel, sut, listRestTime);
+            }
+        }
+        else
+        {
+            planPerHour = currentModel == previousModel
+                ? Model.CalculatePlan(startTime, endTime, sut, listRestTime)
+                : Model.CalculatePlan(firstTimeModel, lastTimeModel, sut, listRestTime);
+        }
+
+        // Ensure plan doesn't exceed quantity plan
+        planPerHour = Math.Min(planPerHour, qtyPlan);
+
+        return planPerHour > 0 ? planPerHour : 1;
+    }
+}
+
+<div class="row mx-3">
+    <!-- Filter Form -->
+    <form method="post" asp-page-handler="OnPost" class="w-100 mb-3">
+        <div class="row">
+            <div class="col-5 d-flex gap-2 align-items-center">
+                <label class="fw-bold fs-5">LINE</label>
+                <select class="form-select border-dark border-2 text-black fs-5 fw-bold" name="MachineCode" id="MachineCode">
+                    <option value="MCH1-01">CU Line</option>
+                    <option value="MCH1-02">CS Line</option>
+                </select>
+            </div>
+            <div class="col-5 d-flex gap-2 align-items-center">
+                <label class="fw-bold fs-5">DATE</label>
+                <input type="date" class="form-control border-dark border-2 text-black fs-5 fw-bold w-100"
+                       name="SelectedDate"
+                       value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col align-items-center">
+                <button type="submit" class="btn fs-5 text-white fw-semibold" style="background-color: rgb(61, 121, 176);">FILTER</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Dashboard Content -->
+    <div class="col-5">
+        <!-- Production Metrics Table -->
+        <div class="text-center table-responsive card rounded rounded-2 p-0 m-0 @(Model.SelectedDate != DateTime.Now.Date ? "" : "refreshDailyData")" style="border: 1px solid rgb(61, 121, 176);">
+            <table class="table rounded-2 border-2 overflow-hidden p-0 m-0">
+                <tbody>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">PLAN</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@planProd</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">TARGET</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@targetProd</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">ACTUAL</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@actualProd</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">DIFFERENCE</td>
+                        <td class="border fs-4 fw-bold w-50 py-3 @(differenceProd > 0 ? "" : "text-danger")" style="border: 1px solid rgb(61, 121, 176);">@differenceProd</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color:rgb(61, 121, 176);">EFFICIENCY</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@(efficiencyMetrics.EffProd > 0 ? efficiencyMetrics.EffProd : 0) %</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="2" class="text-white align-middle border border-end fs-4 fw-bold py-3" style="background-color: rgb(61, 121, 176);">TAKT TIME</td>
+                        <td class="text-white fs-4 fw-bold py-3" style="background-color: rgb(61, 121, 176);">PLAN</td>
+                        <td class="border fs-4 fw-bold py-3" style="border: 1px solid rgb(61, 121, 176);">@planTaktTime s</td>
+                    </tr>
+                    <tr>
+                        <td class="text-white fs-4 fw-bold py-3" style="background-color: rgb(61, 121, 176);">ACT</td>
+                        <td class="border fs-4 fw-bold py-3" style="border: 1px solid rgb(61, 121, 176);">@(efficiencyMetrics.ActTaktTime > 0 ? efficiencyMetrics.ActTaktTime : 0) s</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">DEFECT (%)</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@defectRatio %</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">WORKING TIME</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@(workingTime > 0 ? workingTime : 0) min</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" class="text-white fs-4 fw-bold w-50 py-3" style="background-color: rgb(61, 121, 176);">LOSS TIME</td>
+                        <td class="border fs-4 fw-bold w-50 py-3" style="border: 1px solid rgb(61, 121, 176);">@totalLossTime min</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-7">
+        <div class="rounded-3 mb-3" style="border: 1px solid rgb(61, 121, 176); height: 300px">
+            <div class="row">
+                <label class="fs-2 text-center fw-bolder" style="color: rgb(61, 121, 176);">REALTIME EFFICIENCY</label>
+            </div>
+            <div class="row d-flex justify-content-center mx-2">
+                <canvas id="RealtimeChart" width="400" height="100"></canvas>
+            </div>
+        </div>
+
+        <div class="overflow-y-auto text-center table-responsive card rounded-2 p-0 m-0" style="border: 1px solid rgb(61, 121, 176); height:378px">
+            <div class="row p-0 m-0">
+                <label class="fs-2 text-center fw-bolder p-0 m-0" style="color: rgb(61, 121, 176);">HOURLY ACHIEVEMENT</label>
+            </div>
+            <div class="overflow-y-auto row p-0 m-0 @(Model.SelectedDate != DateTime.Now.Date ? "" : "refreshHourlyAchievement")">
+                <table class="table border-2 p-0 m-0 fs-4 overflow-y-auto">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="text-white" style="background-color: rgb(61, 121, 176);">TIME</th>
+                            <th scope="col" class="text-white" style="background-color: rgb(61, 121, 176);">MODEL</th>
+                            <th scope="col" class="text-white" style="background-color: rgb(61, 121, 176);">PLAN</th>
+                            <th scope="col" class="text-white" style="background-color: rgb(61, 121, 176);">ACTUAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.listProdAchieve.Count > 0)
+                        {
+                            var sortedList = Model.listProdAchieve
+                            .OrderByDescending(item => item.Time)
+                            .ToList();
+
+                            var totalPlanPerHour = 1;
+                            var previousTime = "";
+                            var previousModel = "";
+
+                            for (int i = 0; i < sortedList.Count; i++)
+                            {
+                                <tr>
+                                    @if (previousTime != sortedList[i].Time)
+                                    {
+                                        totalPlanPerHour = 1;
+                                        <td rowspan="@timeCounts[sortedList[i].Time]" class="fw-bold">
+                                            @(sortedList[i].Time ?? "00:00 - 00:00")
+                                        </td>
+                                        previousTime = sortedList[i].Time;
+                                    }
+                                    <td class="fw-bold">@(sortedList[i].Model ?? "NULL")</td>
+                                    <td class="fw-bold">
+                                        @{
+                                            var planPerHour = CalculatePlanPerHour(
+                                            sortedList[i].Model,
+                                            previousModel,
+                                            sortedList[i].StartTime,
+                                            sortedList[i].EndTime,
+                                            currentTime,
+                                            currentDate,
+                                            sortedList[i].SUT,
+                                            listRestTime
+                                            );
+
+                                            previousModel = sortedList[i].Model;
+                                        }
+                                        @planPerHour
+                                    </td>
+                                    <td class="fw-bold">@(sortedList[i].Actual != null ? sortedList[i].Actual : 1)</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" style="border: 1px solid #a6a6a6; padding: 8px; text-align: center;">There is no actual data entered</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let labelData = @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(efficiencyData.Labels)));
+    let efficiencyDataPoints = @(Html.Raw(System.Text.Json.JsonSerializer.Serialize(efficiencyData.CumulativeEfficiency)));
+
+    const ctx = document.getElementById('RealtimeChart').getContext('2d');
+    const realtimeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labelData,
+            datasets: [
+                {
+                    label: 'Efficiency (%)',
+                    data: efficiencyDataPoints,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: false,
+                    tension: 0.1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true,
+                },
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 120,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            }
+        },
+    });
+
+    window.myChart = realtimeChart;
+
+    async function fetchUpdatedChartData() {
+        try {
+            const response = await fetch('?handler=UpdatedData');
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data || !data.Labels || !data.Efficiency) {
+                throw new Error("Incomplete data received from the server.");
+            }
+
+            updateChartData(data);
+        } catch (error) {
+            console.error("Failed to fetch updated data:", error.message);
+        }
+    }
+
+    function updateChartData(data) {
+        const chart = window.myChart;
+
+        if (chart) {
+            chart.data.labels = data.Labels;
+            chart.data.datasets[0].data = data.Efficiency;
+            chart.update();
+        } else {
+            console.error("Chart instance not found!");
+        }
+    }
+
+    setInterval(fetchUpdatedChartData, 10000);
+</script>

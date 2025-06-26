@@ -1,0 +1,120 @@
+﻿/* Custom styles for identity pages */
+
+.auth-body {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.card {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.card-header {
+    border-bottom: none;
+    padding: 1rem;
+}
+
+    .card-header.bg-primary {
+        background: linear-gradient(109.6deg, rgb(61, 121, 176) 11.3%, rgb(35, 66, 164) 91.1%) !important;
+    }
+
+    .card-header.bg-success {
+        background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%) !important;
+    }
+
+.form-floating > .form-control {
+    padding: 1rem 0.75rem;
+}
+
+    .form-floating > .form-control:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+.btn-primary, .btn-success, .btn-white {
+    border-radius: 5px;
+    padding: 10px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-white {
+    background-color: #ffffff;
+    border: none;
+}
+
+    .btn-white:hover {
+        box-shadow: 0 5px 15px #f8f9fa;
+        background-color: #ffffff;
+        transform: translateY(-2px);
+        color: black;
+    }
+
+
+.btn-primary {
+    background: linear-gradient(109.6deg, rgb(61, 121, 176) 11.3%, rgb(45, 76, 174) 91.1%);
+    border: none;
+}
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+        background: linear-gradient(109.6deg, rgb(71, 131, 186) 11.3%, rgb(45, 76, 174) 91.1%);
+    }
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+}
+
+.text-decoration-none {
+    color: rgb(61, 121, 176);
+    transition: all 0.2s ease;
+}
+
+    .text-decoration-none:hover {
+        color: rgb(35, 66, 164);
+        text-decoration: underline !important;
+    }
+
+/* Style for the validation errors */
+.text-danger {
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+/* External login buttons styling */
+.btn-outline-secondary {
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+    .btn-outline-secondary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+    }
+
+/* Password toggle icon positioning */
+.password-toggle {
+    color: #6c757d;
+}
+
+    .password-toggle:hover {
+        color: rgb(61, 121, 176);
+    }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .col-md-6 {
+        padding: 0 15px;
+    }
+
+    .card {
+        margin-bottom: 30px;
+    }
+}

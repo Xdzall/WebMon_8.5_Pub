@@ -1,0 +1,38 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - MonitoringSystem</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site-identity.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/MonitoringSystem.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+</head>
+<body class="auth-body">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center my-4">
+                <h2 class="fw-bold mb-0" style="color: rgb(61, 121, 176);">AC BU Monitoring System</h2>
+                <p class="text-muted">Panasonic Manufacturing Indonesia (PMI)</p>
+            </div>
+        </div>
+        <main role="main">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="footer text-center py-3 mt-5">
+        <div class="container">
+            <p class="text-dark text-center fs-6 mb-0">&copy; 2025 - Panasonic Manufacturing Indonesia (PMI) - AC BU</p>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/identity-scripts.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
