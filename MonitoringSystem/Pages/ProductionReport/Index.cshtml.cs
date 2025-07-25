@@ -78,35 +78,46 @@ namespace MonitoringSystem.Pages.ProductionReport
             string monthName = CultureInfo.GetCultureInfo("en-US").DateTimeFormat.GetMonthName(SelectedMonth);
             this.DaysInMonth = DateTime.DaysInMonth(SelectedYear, SelectedMonth);
 
-            TimeSpan shift1Start = new TimeSpan(7, 0, 0);
-            TimeSpan shift1End = new TimeSpan(16, 0, 0);
+            // --- KODE BARU: Kalkulasi Total Working Time dengan Pengecekan Hari ---
+            TimeSpan workDayStart = new TimeSpan(7, 5, 0);
+            TimeSpan workDayEnd = new TimeSpan(15, 55, 0);
+
             for (int day = 1; day <= this.DaysInMonth; day++)
             {
                 var currentDate = new DateTime(SelectedYear, SelectedMonth, day);
-                if (isCurrentMonthView && currentDate.Date > DateTime.Now.Date) { DailyWorkTime.Add(0); continue; }
                 var dayType = DetermineTypeOfDay(currentDate.DayOfWeek);
                 int workTimeForThisDay = 0;
-                if (dayType != "WEEKEND")
+
+                if (isCurrentMonthView && currentDate.Date > DateTime.Now.Date)
                 {
-                    var allRestTimes = GetRestTime(dayType);
-                    if (currentDate.Date == DateTime.Now.Date)
+                    workTimeForThisDay = 0;
+                }
+                else if (dayType != "WEEKEND")
+                {
+                    // Pilih jadwal istirahat berdasarkan hari
+                    var breaksForThisDay = (dayType == "FRIDAY") ? this.FridayBreakTimes : this.RegularDayBreakTimes;
+                    var definedBreaks = breaksForThisDay.Select(b => new RestTime { StartTime = b.Start, EndTime = b.End }).ToList();
+
+                    if (currentDate.Date < DateTime.Now.Date)
+                    {
+                        // Kalkulasi untuk satu hari penuh
+                        int totalDuration = (int)(workDayEnd - workDayStart).TotalMinutes;
+                        int totalRest = GetTotalRestTime(definedBreaks, workDayStart, workDayEnd, workDayEnd);
+                        workTimeForThisDay = totalDuration - totalRest;
+                    }
+                    else // Ini untuk hari ini (dinamis)
                     {
                         var currentTime = DateTime.Now.TimeOfDay;
-                        if (currentTime > shift1Start)
+                        if (currentTime > workDayStart)
                         {
-                            var effectiveEndTime = (currentTime > shift1End) ? shift1End : currentTime;
-                            int totalDuration = (int)(effectiveEndTime - shift1Start).TotalMinutes;
-                            int totalRest = GetTotalRestTime(allRestTimes, shift1Start, shift1End, currentTime);
+                            var effectiveEndTime = (currentTime > workDayEnd) ? workDayEnd : currentTime;
+                            int totalDuration = (int)(effectiveEndTime - workDayStart).TotalMinutes;
+                            int totalRest = GetTotalRestTime(definedBreaks, workDayStart, workDayEnd, currentTime);
                             workTimeForThisDay = totalDuration - totalRest;
                         }
                     }
-                    else if (currentDate.Date < DateTime.Now.Date)
-                    {
-                        int totalDuration = (int)(shift1End - shift1Start).TotalMinutes;
-                        int totalRest = GetTotalRestTime(allRestTimes, shift1Start, shift1End, shift1End);
-                        workTimeForThisDay = totalDuration - totalRest;
-                    }
                 }
+
                 DailyWorkTime.Add(workTimeForThisDay < 0 ? 0 : workTimeForThisDay);
             }
 
@@ -117,14 +128,57 @@ namespace MonitoringSystem.Pages.ProductionReport
             if (System.IO.File.Exists(estimateFilePath)) { var estimateValues = ReadDataFromCsv(estimateFilePath, this.DaysInMonth); for (int i = 0; i < estimateValues.Count; i++) { combinedData[i].Estimate = estimateValues[i]; } }
 
             string shiftsForSql = SelectedShifts.Any() ? string.Join(",", SelectedShifts.Select(s => $"'{s}'")) : "'0'";
+            // --- GANTI KESELURUHAN ISI VARIABEL 'sql' DENGAN YANG INI ---
             var sql = $@"
-                WITH DailyAggregates AS (
-                    SELECT ReportDate, MAX(CASE WHEN Shift = 1 THEN TotalUnit END) as Shift1_EndReading, MAX(CASE WHEN Shift IN (2, 3) THEN TotalUnit END) as OT_EndReading, MAX(NoOfOperator) as MaxOp, MAX(CASE WHEN Shift IN (2, 3) THEN NoOfOperator END) as OT_OperatorCount, MAX(CASE WHEN Shift IN (2, 3) THEN SDate END) as OT_LastSDate
-                    FROM ( SELECT CAST(SDate AS DATE) AS ReportDate, SDate, TotalUnit, NoOfOperator, CASE WHEN CAST(SDate AS TIME) >= '07:00:00' AND CAST(SDate AS TIME) < '16:00:00' THEN 1 WHEN CAST(SDate AS TIME) >= '16:00:00' AND CAST(SDate AS TIME) < '23:15:00' THEN 2 ELSE 3 END as Shift FROM oeesn WHERE YEAR(SDate) = @SelectedYear AND MONTH(SDate) = @SelectedMonth AND MachineCode = @MachineLine {dateFilter} ) as ShiftData
-                    GROUP BY ReportDate
-                )
-                SELECT DAY(ReportDate) as Day, CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_EndReading, 0) ELSE 0 END as LastNormalReading, CASE WHEN ('2' IN ({shiftsForSql}) OR '3' IN ({shiftsForSql})) THEN ISNULL(OT_EndReading, 0) ELSE CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_EndReading, 0) ELSE 0 END END as LastOvertimeReading, ISNULL(MaxOp, 0) as NoOfOperator, ISNULL(OT_OperatorCount, 0) as OtOperatorCount, ISNULL(CAST(OT_LastSDate AS TIME), '00:00:00') as LastOtTime
-                FROM DailyAggregates;";
+                        WITH ShiftData AS (
+                            SELECT
+                                CAST(SDate AS DATE) AS ReportDate,
+                                SDate, TotalUnit, NoOfOperator,
+                                CASE
+                                    WHEN CAST(SDate AS TIME) >= '07:00:00' AND CAST(SDate AS TIME) < '16:00:00' THEN 1
+                                    WHEN CAST(SDate AS TIME) >= '16:00:00' AND CAST(SDate AS TIME) < '23:15:00' THEN 2
+                                    ELSE 3
+                                END as Shift
+                            FROM oeesn
+                            WHERE YEAR(SDate) = @SelectedYear 
+                              AND MONTH(SDate) = @SelectedMonth 
+                              AND MachineCode = @MachineLine
+                              {dateFilter}
+                        ),
+                        DailyAggregates AS (
+                            SELECT
+                                ReportDate,
+                                MAX(CASE WHEN Shift = 1 THEN TotalUnit END) as Shift1_EndReading,
+                                MAX(CASE WHEN Shift IN (2, 3) THEN TotalUnit END) as OT_EndReading,
+                                -- AWAL PERUBAHAN: Ambil NoOfOperator per periode shift
+                                MAX(CASE WHEN Shift = 1 THEN NoOfOperator END) as Shift1_Operators,
+                                MAX(CASE WHEN Shift IN (2, 3) THEN NoOfOperator END) as OT_Operators,
+                                -- AKHIR PERUBAHAN
+                                MAX(CASE WHEN Shift IN (2, 3) THEN NoOfOperator END) as OT_OperatorCount,
+                                MAX(CASE WHEN Shift IN (2, 3) THEN SDate END) as OT_LastSDate
+                            FROM ShiftData
+                            GROUP BY ReportDate
+                        )
+                        SELECT
+                            DAY(ReportDate) as Day,
+                            CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_EndReading, 0) ELSE 0 END as LastNormalReading,
+                            CASE 
+                                WHEN ('2' IN ({shiftsForSql}) OR '3' IN ({shiftsForSql})) THEN ISNULL(OT_EndReading, 0) 
+                                ELSE CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_EndReading, 0) ELSE 0 END
+                            END as LastOvertimeReading,
+        
+                            -- AWAL PERUBAHAN: Logika baru untuk NoOfOperator yang mengikuti filter shift
+                            CASE
+                                WHEN CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_Operators, 0) ELSE 0 END >
+                                     CASE WHEN '2' IN ({shiftsForSql}) OR '3' IN ({shiftsForSql}) THEN ISNULL(OT_Operators, 0) ELSE 0 END
+                                THEN CASE WHEN '1' IN ({shiftsForSql}) THEN ISNULL(Shift1_Operators, 0) ELSE 0 END
+                                ELSE CASE WHEN '2' IN ({shiftsForSql}) OR '3' IN ({shiftsForSql}) THEN ISNULL(OT_Operators, 0) ELSE 0 END
+                            END as NoOfOperator,
+                            -- AKHIR PERUBAHAN
+
+                            ISNULL(OT_OperatorCount, 0) as OtOperatorCount,
+                            ISNULL(CAST(OT_LastSDate AS TIME), '00:00:00') as LastOtTime
+                        FROM DailyAggregates;";
 
             try
             {
@@ -164,25 +218,79 @@ namespace MonitoringSystem.Pages.ProductionReport
                 OvertimeMinutes.Add(netOvertimeMinutes > 0 ? netOvertimeMinutes : 0);
                 dailyLosses.TryGetValue(data.Day, out int totalSeconds);
                 DailyLossTime.Add(totalSeconds / 60);
+
+                // Aturan Bisnis: Jika tidak ada produksi Normal, maka Working Time dianggap 0.
+                for (int i = 0; i < this.DaysInMonth; i++)
+                {
+                    // Cek apakah ada data di list dan apakah nilai NormalData pada hari ke-i adalah 0
+                    if (NormalData.Count > i && NormalData[i] == 0)
+                    {
+                        // Jika ya, atur juga DailyWorkTime pada hari ke-i menjadi 0
+                        if (DailyWorkTime.Count > i)
+                        {
+                            DailyWorkTime[i] = 0;
+                        }
+                    }
+                }
             }
         }
 
-        // --- Kumpulan Metode Helper ---
-        private readonly List<(TimeSpan Start, TimeSpan End)> FixedBreakTimes = new List<(TimeSpan, TimeSpan)> { (new TimeSpan(7, 0, 0), new TimeSpan(7, 0, 5)), (new TimeSpan(9, 30, 0), new TimeSpan(9, 35, 0)), (new TimeSpan(12, 0, 0), new TimeSpan(12, 45, 0)), (new TimeSpan(15, 30, 0), new TimeSpan(15, 35, 0)), (new TimeSpan(18, 15, 0), new TimeSpan(18, 45, 0)) };
+        // --- KODE BARU: Jadwal Istirahat Terpisah ---
+        private readonly List<(TimeSpan Start, TimeSpan End)> RegularDayBreakTimes = new List<(TimeSpan, TimeSpan)>
+        {
+            (new TimeSpan(9, 30, 0), new TimeSpan(9, 35, 0)),    // Istirahat 5 menit
+            (new TimeSpan(12, 0, 0), new TimeSpan(12, 45, 0)),   // Istirahat 45 menit
+            (new TimeSpan(14, 30, 0), new TimeSpan(14, 35, 0))   // Istirahat 5 menit
+        };
+
+                private readonly List<(TimeSpan Start, TimeSpan End)> FridayBreakTimes = new List<(TimeSpan, TimeSpan)>
+        {
+            (new TimeSpan(9, 30, 0), new TimeSpan(9, 35, 0)),    // Istirahat 5 menit
+            (new TimeSpan(11, 50, 0), new TimeSpan(13, 15, 0)),  // Istirahat Sholat Jumat 85 menit
+            (new TimeSpan(14, 30, 0), new TimeSpan(14, 35, 0))   // Istirahat 5 menit
+        };
         private bool IsInBreakTime(TimeSpan startTime, TimeSpan endTime, List<(TimeSpan Start, TimeSpan End)> breakTimes) { foreach (var (breakStart, breakEnd) in breakTimes) { if (startTime < breakEnd && endTime > breakStart) { return true; } } return false; }
+        // --- KODE BARU: Logika Loss Time dengan Pengecekan Hari ---
+        // --- GANTI KESELURUHAN METODE INI ---
         private Dictionary<int, int> GetDailyLossTimeTotals()
         {
             var dailyTotals = new Dictionary<int, int>();
-            var breakCache = new Dictionary<DateTime, List<(TimeSpan Start, TimeSpan End)>>();
 
-            string query = @"
+            // --- AWAL PERUBAHAN: Sinkronisasi Definisi Shift ---
+            string shiftFilterSql = "";
+            // Hanya tambahkan filter jika tidak semua shift dipilih
+            if (SelectedShifts.Any() && SelectedShifts.Count < 3)
+            {
+                var shiftConditions = new List<string>();
+                // Logika CASE WHEN ini sekarang SAMA PERSIS dengan halaman Loss Time
+                string shiftCaseWhen = @"
+            CASE 
+                WHEN (DATEPART(HOUR, Time) = 7 AND DATEPART(MINUTE, Time) >= 0) OR 
+                     (DATEPART(HOUR, Time) > 7 AND DATEPART(HOUR, Time) < 15) OR 
+                     (DATEPART(HOUR, Time) = 15 AND DATEPART(MINUTE, Time) <= 45) THEN '1'
+                WHEN (DATEPART(HOUR, Time) = 15 AND DATEPART(MINUTE, Time) > 45) OR 
+                     (DATEPART(HOUR, Time) > 15 AND DATEPART(HOUR, Time) < 23) OR 
+                     (DATEPART(HOUR, Time) = 23 AND DATEPART(MINUTE, Time) <= 15) THEN '2'
+                ELSE '3'
+            END";
+
+                foreach (var shift in SelectedShifts)
+                {
+                    shiftConditions.Add($"{shiftCaseWhen} = '{shift}'");
+                }
+                shiftFilterSql = $"AND ({string.Join(" OR ", shiftConditions)})";
+            }
+            // --- AKHIR PERUBAHAN ---
+
+            string query = $@"
         SELECT 
-            CAST(Date AS DATE) as FullDate, 
+            CAST(Date AS DATE) as FullDate,
             CAST(Time AS TIME) as StartTime, 
             CAST(EndDateTime AS TIME) as EndTime, 
             LossTime as Duration
         FROM AssemblyLossTime
-        WHERE YEAR(Date) = @Year AND MONTH(Date) = @Month AND MachineCode = @Machine";
+        WHERE YEAR(Date) = @Year AND MONTH(Date) = @Month AND MachineCode = @Machine
+        {shiftFilterSql}"; // Filter yang sudah sinkron disisipkan di sini
 
             try
             {
@@ -205,18 +313,10 @@ namespace MonitoringSystem.Pages.ProductionReport
                                 var endTime = (TimeSpan)reader["EndTime"];
                                 var duration = Convert.ToInt32(reader["Duration"]);
 
-                                // Cek cache, jika belum ada break untuk tanggal ini, ambil & simpan
-                                if (!breakCache.ContainsKey(fullDate.Date))
-                                {
-                                    var additionalBreaks = GetAdditionalBreakTimesForDate(fullDate);
-                                    var allBreaksForDay = new List<(TimeSpan Start, TimeSpan End)>();
-                                    allBreaksForDay.AddRange(this.FixedBreakTimes);
-                                    allBreaksForDay.AddRange(additionalBreaks);
-                                    breakCache[fullDate.Date] = allBreaksForDay;
-                                }
+                                var dayType = DetermineTypeOfDay(fullDate.DayOfWeek);
+                                var breaksForThisDay = (dayType == "FRIDAY") ? this.FridayBreakTimes : this.RegularDayBreakTimes;
 
-                                // Gunakan break yang sudah dicache untuk pengecekan
-                                if (!IsInBreakTime(startTime, endTime, breakCache[fullDate.Date]))
+                                if (!IsInBreakTime(startTime, endTime, breaksForThisDay))
                                 {
                                     if (!dailyTotals.ContainsKey(day))
                                     {

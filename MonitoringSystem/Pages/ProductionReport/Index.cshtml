@@ -132,9 +132,9 @@
                 <h5>Daily (@CultureInfo.GetCultureInfo("en-US").DateTimeFormat.GetMonthName(Model.SelectedMonth) @Model.SelectedYear)</h5>
                 <canvas id="dayChart" width="100%" height="25%"></canvas>
             </div>
-        </div> @* Penutup col-12 *@
-    </div> @* Penutup row kedua *@
-</div> @* Penutup container-fluid *@
+        </div> 
+    </div> 
+</div>
                 @section Scripts {
                     <script src="~/js/chart.umd.js"></script>
                     <script>
@@ -147,34 +147,32 @@
                                     {
                                         label: 'Normal',
                                         data: @Html.Raw(Json.Serialize(Model.NormalData)),
-                                        backgroundColor: '#4BC0C0', // Hijau toska
+                                        backgroundColor: '#4BC0C0',
                                         barThickness: 10,
-                                        stack: 'Actual' // Kunci untuk menumpuk (stacking)
+                                        stack: 'Actual' 
                                     },
                                     {
                                         label: 'Overtime',
                                         data: @Html.Raw(Json.Serialize(Model.OvertimeData)),
-                                        backgroundColor: '#FF6384', // Merah muda
+                                        backgroundColor: '#FF6384', 
                                         barThickness: 10,
-                                        stack: 'Actual' // Kunci untuk menumpuk (stacking)
+                                        stack: 'Actual' 
                                     },
                                     {
-                                        type: 'line', // Ganti tipe menjadi 'line' untuk Plan
+                                        
                                         label: 'Plan',
                                         data: @Html.Raw(Json.Serialize(Model.PlanData)),
-                                        borderColor: 'rgba(54, 162, 235, 1)', // Biru
-                                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                                        tension: 0.4,
-                                        fill: false
+                                        backgroundColor: 'rgba(54, 162, 235, 0.7)', // Biru
+                                        barThickness: 10,
+                                        stack: 'Plan' // Dibuat grup sendiri agar tidak menumpuk dengan Actual
                                     },
                                     {
-                                        type: 'line', // Ganti tipe menjadi 'line' untuk Estimate
+                                        // type: 'line' dihapus agar menjadi bar
                                         label: 'Estimate',
                                         data: @Html.Raw(Json.Serialize(Model.EstimateData)),
-                                        borderColor: 'rgba(255, 159, 64, 1)', // Oranye
-                                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                                        tension: 0.4,
-                                        fill: false
+                                        backgroundColor: 'rgba(255, 159, 64, 0.7)', // Oranye
+                                        barThickness: 10,
+                                        stack: 'Estimate' // Dibuat grup sendiri
                                     }
                                 ]
                             },
@@ -306,22 +304,63 @@
             <td>Loss Time</td>
                     @for (int i = 0; i < Model.DailyLossTime.Count; i++)
                     {
-                    <td>@(Model.DailyLossTime[i] > 0 ? Model.DailyLossTime[i] : "")</td>
+                    <td>@(Model.DailyLossTime[i] > 0 ? Model.DailyLossTime[i] : "0")</td>
                     }
         </tr>
         <tr>
-            <td>Achievement Ratio</td>
-            @for (int i = 0; i < Model.DaysInMonth; i++)
-            {
-                    <td></td>
-            }
+            <td><b>Achievement Ratio</b></td>
+                    @for (int i = 0; i < Model.PlanData.Count; i++)
+                    {
+                    <td>
+                            @{
+                                // Menjumlahkan data actual Normal + Overtime
+                                decimal totalActual = Model.NormalData[i] + Model.OvertimeData[i];
+                                decimal plan = Model.PlanData[i];
+                                double ratio = 0;
+
+                                // Mencegah error pembagian dengan nol jika plan = 0
+                                if (plan > 0)
+                                {
+                                    ratio = Math.Round(((double)totalActual / (double)plan) * 100, 2);
+                                }
+                            }
+                            @if (ratio > 0)
+                            {
+                                // Menambahkan format persentase dan warna berdasarkan nilai
+                                <span class="@(ratio >= 100 ? "text-success" : "text-danger")">@ratio%</span>
+                            }
+                    </td>
+                    }
         </tr>
-        <tr>
-            <td>Production Quantity / Head / Hour</td>
-            @for (int i = 0; i < Model.DaysInMonth; i++)
+       <tr>
+    <td><b>Prod. Qty / Head / Hour</b></td>
+            @for (int i = 0; i < Model.PlanData.Count; i++)
             {
-                    <td></td>
+            <td>
+                    @{
+                        // Mengambil semua komponen data untuk hari ke-i
+                        decimal totalActual = Model.NormalData[i] + Model.OvertimeData[i];
+                        int workers = Model.NoOfDirectWorkers[i];
+                        int workingMinutes = Model.DailyWorkTime[i];
+                        int lossMinutes = Model.DailyLossTime[i];
+
+                        // Menghitung total jam kerja produktif (dalam menit)
+                        double netProductiveMinutes = workingMinutes - lossMinutes;
+                        double pph = 0; // Production per Head per Hour
+
+                        // Mencegah error jika pembagi bernilai nol atau negatif
+                        if (totalActual > 0 && workers > 0 && netProductiveMinutes > 0)
+                        {
+                            // Konversi menit produktif ke jam
+                            double netProductiveHours = netProductiveMinutes / 60.0;
+
+                            // Kalkulasi PPH
+                            pph = Math.Round((double)totalActual / workers / netProductiveHours, 2);
+                        }
+                    }
+                    @(pph > 0 ? pph.ToString() : "")
+            </td>
             }
-        </tr>
+</tr>
     </tbody>
 </table>
