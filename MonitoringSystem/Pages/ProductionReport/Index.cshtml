@@ -1,0 +1,327 @@
+﻿@page
+@using System.Globalization;
+@model MonitoringSystem.Pages.ProductionReport.IndexModel
+@{
+    ViewData["Title"] = "Production Report";
+}
+
+<!-- Awalan Tabel -->
+<div>
+          <div class="container-fluid mt-4"> @* Menggunakan container-fluid untuk lebar penuh halaman *@
+    <div class="row g-3 align-items-center justify-content-center"> @* <-- justify-content-center untuk memusatkan konten di dalam row ini *@
+        
+        <div class="col-12"> @* <-- col-12 agar div ini selalu mengambil lebar penuh dari row-nya *@
+            
+            @* Baris untuk Filter Form dan Tombol Tambah *@
+            <div class="row g-3 align-items-center justify-content-between flex-wrap">
+                <div class="col-auto">
+                    <form method="post" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <select class="form-select" id="SelectedMonth" name="SelectedMonth" asp-for="SelectedMonth">
+                                @for (int i = 1; i <= 12; i++)
+                                {
+                                    <option value="@i">@CultureInfo.GetCultureInfo("en-US").DateTimeFormat.GetMonthName(i)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select" id="SelectedYear" name="SelectedYear" asp-for="SelectedYear">
+                                @for (int i = DateTime.Now.Year; i >= 2000; i--)
+                                {
+                                    <option value="@i">@i</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-auto d-flex gap-3 align-items-center">
+                            <label class="fw-bold fs-6">Machine Line</label>
+                           <select class="form-select border-dark filter-control" id="MachineLine" name="MachineLine" asp-for="MachineLine">
+                                <option value="MCH1-01">CU</option>
+                                <option value="MCH1-02">CS</option>
+                            </select>
+                        </div>
+                        <div class="col-auto d-flex gap-3 align-items-center">
+                             <label class="fw-bold fs-6">Shift</label>
+                             <div class="d-flex gap-2">
+                                 <div class="form-check">
+                                     <input class="form-check-input filter-control" type="checkbox" id="Shift1" name="SelectedShifts" value="1" @(Model.SelectedShifts.Contains("1") ? "checked" : "")>
+                                    <label class="form-check-label" for="Shift1">1</label>
+                                 </div> 
+                                <div class="form-check"> 
+                                    <input class="form-check-input filter-control" type="checkbox" id="Shift2" name="SelectedShifts" value="2" @(Model.SelectedShifts.Contains("2") ? "checked" : "")>
+                                    <label class="form-check-label" for="Shift2">2</label>
+                                 </div> 
+                                 <div class="form-check"> 
+                                    <input class="form-check-input filter-control" type="checkbox" id="Shift3" name="SelectedShifts" value="3" @(Model.SelectedShifts.Contains("3") ? "checked" : "")>
+                                     <label class="form-check-label" for="Shift3">3</label> 
+                                 </div> 
+                            </div>
+                         </div>
+                        <div class="col-auto d-flex gap-2">
+                            <button type="submit" name="submitButton" value="search" class="btn fw-bold fs-6 text-white" style="background-color: rgb(61, 121, 176);">Search</button>
+                            <button type="submit" name="submitButton" value="reset" class="btn fw-bold fs-6 text-white" style="background-color: rgb(176, 61, 61);">Reset</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-auto ms-auto">
+                    <div class="d-flex gap-2">
+                                            @* Tombol-tombol untuk download template
+                        <a asp-page-handler="DownloadTemplate" asp-route-type="cu" class="btn btn-outline-success">Download CU</a>
+                        <a asp-page-handler="DownloadTemplate" asp-route-type="cs" class="btn btn-outline-info">Download CS</a>
+
+                                            @* Tombol + untuk membuka modal upload. Atribut data-bs-* akan menampilkannya. *@
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                            +
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header d-flex justify-content-between align-items-center">
+                            <h5 class="modal-title" id="uploadModalLabel">Upload Plan</h5>
+                                            @* Tombol close standar bootstrap *@
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                                            @* Form upload Anda sudah benar, tidak perlu diubah *@
+                            <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
+                                <div class="form-group mb-3">
+                                    <label for="UploadedFile" class="form-label">Upload Plan File:</label>
+                                    <input type="file" id="UploadedFile" name="UploadedFile" class="form-control" required>
+                                </div>
+
+                                <div class="form-group mb-3">
+                                    <label for="TargetMachine" class="form-label">For Machine:</label>
+                                    <select id="TargetMachine" name="TargetMachine" class="form-select" required>
+                                        <option value="MCH1-01">CU</option>
+                                        <option value="MCH1-02">CS</option>
+                                    </select>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 form-group mb-3">
+                                        <label for="TargetMonth" class="form-label">For Month:</label>
+                                        <select id="TargetMonth" name="TargetMonth" class="form-select" required>
+                                                            @for (int i = 1; i <= 12; i++)
+                                                            {
+                                                    <option value="@i">@CultureInfo.GetCultureInfo("en-US").DateTimeFormat.GetMonthName(i)</option>
+                                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 form-group mb-3">
+                                        <label for="TargetYear" class="form-label">For Year:</label>
+                                        <select id="TargetYear" name="TargetYear" class="form-select" required>
+                                                            @for (int i = DateTime.Now.Year; i <= DateTime.Now.Year + 5; i++)
+                                                            {
+                                                    <option value="@i">@i</option>
+                                                            }
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-success">Upload and Save</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4" id="dayDiv">
+                <h5>Daily (@CultureInfo.GetCultureInfo("en-US").DateTimeFormat.GetMonthName(Model.SelectedMonth) @Model.SelectedYear)</h5>
+                <canvas id="dayChart" width="100%" height="25%"></canvas>
+            </div>
+        </div> @* Penutup col-12 *@
+    </div> @* Penutup row kedua *@
+</div> @* Penutup container-fluid *@
+                @section Scripts {
+                    <script src="~/js/chart.umd.js"></script>
+                    <script>
+                        var ctx = document.getElementById('dayChart').getContext('2d');
+                        var dayChart = new Chart(ctx, {
+                            type: 'bar', // Tipe default adalah bar
+                            data: {
+                                labels: @Html.Raw(Json.Serialize(Model.ChartLabels)),
+                                datasets: [
+                                    {
+                                        label: 'Normal',
+                                        data: @Html.Raw(Json.Serialize(Model.NormalData)),
+                                        backgroundColor: '#4BC0C0', // Hijau toska
+                                        barThickness: 10,
+                                        stack: 'Actual' // Kunci untuk menumpuk (stacking)
+                                    },
+                                    {
+                                        label: 'Overtime',
+                                        data: @Html.Raw(Json.Serialize(Model.OvertimeData)),
+                                        backgroundColor: '#FF6384', // Merah muda
+                                        barThickness: 10,
+                                        stack: 'Actual' // Kunci untuk menumpuk (stacking)
+                                    },
+                                    {
+                                        type: 'line', // Ganti tipe menjadi 'line' untuk Plan
+                                        label: 'Plan',
+                                        data: @Html.Raw(Json.Serialize(Model.PlanData)),
+                                        borderColor: 'rgba(54, 162, 235, 1)', // Biru
+                                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                        tension: 0.4,
+                                        fill: false
+                                    },
+                                    {
+                                        type: 'line', // Ganti tipe menjadi 'line' untuk Estimate
+                                        label: 'Estimate',
+                                        data: @Html.Raw(Json.Serialize(Model.EstimateData)),
+                                        borderColor: 'rgba(255, 159, 64, 1)', // Oranye
+                                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                                        tension: 0.4,
+                                        fill: false
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Pieces'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Date'
+                                        },
+                                        // Memberitahu chart bahwa sumbu x ini bisa di-stack
+                                        stacked: true 
+                                    }
+                                }
+                            }
+                        });
+                    </script>
+            }
+     </div>
+@{
+    var headerDates = Enumerable.Range(1, Model.DaysInMonth).ToList();
+}
+
+<table class="table table-bordered text-center align-middle">
+    <thead class="table-dark">
+        <tr>
+            <th rowspan="2" style="min-width: 200px;">Production Result</th>
+            @foreach (var day in headerDates)
+            {
+                        <th>@day</th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        <tr class="table-secondary">
+             <td colspan="@(Model.DaysInMonth + 1)">Plan Forecast</td>
+        </tr>
+        <tr>
+            <td>Normal</td>
+            @for (int i = 0; i < Model.PlanData.Count; i++)
+            {
+                   <td>@Model.PlanData[i]</td>
+            }
+        </tr>
+        <tr>
+            <td>Overtime</td>
+            @for (int i = 0; i < Model.DaysInMonth; i++)
+            {
+                    <td>0</td>
+            }
+        </tr>
+        <tr>
+            <td>Total</td>
+            @for (int i = 0; i < Model.PlanData.Count; i++)
+            {
+                    <td>@Model.PlanData[i]</td>
+            }
+        </tr>
+
+        <tr class="table-secondary">
+            <td colspan="@(Model.DaysInMonth + 1)">Actual</td>
+        </tr>
+        <tr>
+            <td>Normal</td>
+            @for (int i = 0; i < Model.NormalData.Count; i++)
+            {
+                    <td>@Model.NormalData[i]</td>
+            }
+        </tr>
+        <tr>
+            <td>Overtime</td>
+            @for (int i = 0; i < Model.OvertimeData.Count; i++)
+            {
+                    <td>@Model.OvertimeData[i]</td>
+            }
+        </tr>
+        <tr>
+            <td>Total</td>
+            @for (int i = 0; i < Model.NormalData.Count; i++)
+            {
+                     <td>@(Model.NormalData[i] + Model.OvertimeData[i])</td>
+            }
+        </tr>
+        <tr>
+            <td><b>Difference (Actual - Plan)</b></td>
+            @for (int i = 0; i < Model.NormalData.Count; i++)
+            {
+                     <td>@((Model.NormalData[i] + Model.OvertimeData[i]) - Model.PlanData[i])</td>
+            }
+        </tr>
+
+        <tr>
+            <td><b>No. of Direct Workers</b></td>
+            @for (int i = 0; i < Model.NoOfDirectWorkers.Count; i++)
+            {
+                    <td>@(Model.NoOfDirectWorkers[i] > 0 ? Model.NoOfDirectWorkers[i].ToString() : "0")</td>
+            }
+        </tr>
+       <tr>
+            <td>Overtime - No. of Operator</td>
+                    @for (int i = 0; i < Model.OvertimeOperators.Count; i++)
+                    {
+                    <td>@(Model.OvertimeOperators[i] > 0 ? Model.OvertimeOperators[i] : "0")</td>
+                    }
+        </tr>
+        <tr>
+            <td>Overtime - Minutes</td>
+                    @for (int i = 0; i < Model.OvertimeMinutes.Count; i++)
+                    {
+                    <td>@(Model.OvertimeMinutes[i] > 0 ? Model.OvertimeMinutes[i] : "0")</td>
+                    }
+        </tr>
+        <tr>
+            <td>Total Working Time</td>
+            @for (int i = 0; i < Model.DailyWorkTime.Count; i++)
+            {
+                    <td>@Model.DailyWorkTime[i]</td>
+            }
+        </tr>
+        <tr>
+            <td>Loss Time</td>
+                    @for (int i = 0; i < Model.DailyLossTime.Count; i++)
+                    {
+                    <td>@(Model.DailyLossTime[i] > 0 ? Model.DailyLossTime[i] : "")</td>
+                    }
+        </tr>
+        <tr>
+            <td>Achievement Ratio</td>
+            @for (int i = 0; i < Model.DaysInMonth; i++)
+            {
+                    <td></td>
+            }
+        </tr>
+        <tr>
+            <td>Production Quantity / Head / Hour</td>
+            @for (int i = 0; i < Model.DaysInMonth; i++)
+            {
+                    <td></td>
+            }
+        </tr>
+    </tbody>
+</table>

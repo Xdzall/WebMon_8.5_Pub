@@ -61,7 +61,7 @@
     // System.Diagnostics.Debug.WriteLine($"Plansss " + TotalPlanSUTCUShift_01);
 
 
-    
+
     // Difference Qty (CU SHIFT 1)
     var DiffCUShift_01 = TotalActualCUShift_01 - TotalPlanSUTCUShift_01;
 
@@ -82,7 +82,7 @@
 
     // Model Start Time & End Time (CU SHIFT 1)
     var ModelTimeCUShift_01 = Model.GetModelTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").FirstOrDefault();
-    
+
     // Ratio Defect (CU SHIFT 1)
     var TotalDefectCUShift_01 = Model.GetTotalDefect(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").ToList();
     var DefectRatioCUShift_01 = 100;
@@ -96,7 +96,8 @@
 
     // # of Change Model (CU SHIFT 1)
     var ModelChangesCUShift_01 = Model.GetTotalChangeModel(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-01").Count();
-    
+    //PHH CU
+    var PHHCU = Math.Round((Convert.ToDouble(TotalActualCUShift_01) / 45) / Convert.ToDouble(WorkingTimeShift_01));
     // Model Change Time (CU SHIFT 1)
     var ModelCUShift_01 = Model.GetStartEndModel("MCH1-01", StartWorkingTimeShift_01, EndWorkingTimeShift_01);
     var ModelTimeChangeCUShift_01 = 0.0;
@@ -133,7 +134,8 @@
 
     // Difference Qty (CS SHIFT 1)
     var DiffCSShift_01 = TotalActualCSShift_01 - TotalPlanSUTCSShift_01;
-
+    //Mengitung PHH
+    var PHHCS = Math.Round((Convert.ToDouble(TotalActualCSShift_01) / 45) / Convert.ToDouble(WorkingTimeShift_01));
     // Total Loss Time (CS SHIFT 1)
     var AssemblyTimeCSShift_01 = Model.GetAssemblyTime(StartWorkingTimeShift_01, EndWorkingTimeShift_01).Where(p => p.MachineCode == "MCH1-02").ToList();
     if (AssemblyTimeCSShift_01.Count > 0)
@@ -234,6 +236,7 @@
                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">P/H/H</th>
                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
                         <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
                     </tr>
@@ -243,7 +246,7 @@
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">1</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CU</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCUShift_01</td>
-                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanForSummaryCU</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCUShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCUShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCUShift_01 < 0 ? "text-danger" : "")" width="110px">@DiffCUShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCUShift_01</td>
@@ -258,6 +261,7 @@
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCUShift_01 > 0 ? WorkEffCUShift_01 : 0) %</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_01 %</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCUShift_01 > 0 ? TotalEffCUShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PHHCU</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCUShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCUShift_01, 2))</td>
                     </tr>
@@ -265,7 +269,7 @@
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="60px">1</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="70px">CS</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PlanCSShift_01</td>
-                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanForSummaryCS</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalPlanSUTCSShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalActualCSShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium @(DiffCSShift_01 < 0 ? "text-danger" : "")" width="110px">@DiffCSShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@TotalLossTimeCSShift_01</td>
@@ -280,6 +284,7 @@
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCSShift_01 > 0 ? WorkEffCSShift_01 : 0) %</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_01 %</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCSShift_01 > 0 ? TotalEffCSShift_01 : 0) %</td>
+                        <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PHHCS</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_01</td>
                         <td style="border: 1px solid rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCSShift_01, 2))</td>
                     </tr>
@@ -364,7 +369,8 @@
             // Plan Per SUT (CU SHIFT 2)
             var ProdAchieveCUShift_02 = Model.GetHourlyAchievement(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-01").ToList();
             var TotalPlanSUTCUShift_02 = Model.CalculatePlanPerSUT(PlanCUShift_02, ProdAchieveCUShift_02, listRestTime);
-
+            // PHH CU Shift 2
+            var PHHCUShift2 = Math.Round((Convert.ToDouble(TotalActualCUShift_02) / 45) / Convert.ToDouble(WorkingTimeCUShift_02));
             // Difference Qty (CU SHIFT 2)
             var DiffCUShift_02 = TotalActualCUShift_02 - TotalPlanSUTCUShift_02;
 
@@ -436,6 +442,9 @@
 
             // Difference Qty (CS SHIFT 2)
             var DiffCSShift_02 = TotalActualCSShift_02 - TotalPlanSUTCSShift_02;
+            // PHH CS Shift 2
+            var PHHCSShift2 = Math.Round((Convert.ToDouble(TotalActualCSShift_02) / 25) / Convert.ToDouble(WorkingTimeCSShift_02));
+           
 
             // Total Loss Time (CS SHIFT 2)
             var AssemblyTimeCSShift_02 = Model.GetAssemblyTime(StartWorkingTimeShift_02, EndWorkingTimeShift_02).Where(p => p.MachineCode == "MCH1-02").ToList();
@@ -501,6 +510,7 @@
                          <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Work Eff. (%)</th>
                          <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Defect Ratio (%)</th>
                          <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Total Eff. (%)</th>
+                        <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">P/H/H</th>
                          <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px"># of Model Change</th>
                          <th scope="col" style="background-color: rgb(61, 121, 176);" class="text-white fw-medium border-end" width="110px">Model Chg Time (min)</th>
                     </tr>
@@ -525,6 +535,7 @@
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCUShift_02 > 0 ? WorkEffCUShift_02 : 0) %</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCUShift_02 %</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCUShift_02 > 0 ? TotalEffCUShift_02 : 0) %</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PHHCUShift2</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCUShift_02</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCUShift_02, 2))</td>
                     </tr>
@@ -547,7 +558,8 @@
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(WorkEffCSShift_02 > 0 ? WorkEffCSShift_02 : 0) %</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@DefectRatioCSShift_02 %</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(TotalEffCSShift_02 > 0 ? TotalEffCSShift_02 : 0) %</td>
-                         <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_02</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@PHHCSShift2</td>
+                        <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@ModelChangesCSShift_02</td>
                          <td style="border-color: rgb(61, 121, 176);" class="border fs-5 fw-medium" width="110px">@(Math.Round(ModelTimeChangeCSShift_02, 2))</td>
                     </tr>
                 </tbody>
